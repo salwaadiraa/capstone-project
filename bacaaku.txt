@@ -1,0 +1,55 @@
+===================================================================
+PANDUAN INSTALASI PROJECT - SISTEM PENGAJUAN DANA UNIVERSAL
+(Reimburse BBM & Barang Rusak)
+===================================================================
+
+Ikuti langkah-langkah berikut setelah menarik (clone/pull) project 
+dari GitHub ke komputer lokal:
+
+1. CLONE & MASUK KE DIREKTORI PROJECT
+   git clone https://github.com/salwaadiraa/capstone-project
+   cd capstone-project
+
+2. INSTALL DEPENDENSI COMPOSER
+   Jalankan perintah berikut untuk mengunduh folder vendor Laravel:
+   composer install
+
+3. KONFIGURASI ENVIRONMENT (.env) & APP KEY
+   Salin file .env.example menjadi .env, lalu generate key aplikasi:
+   cp .env.example .env
+   php artisan key:generate
+
+   Buka file .env dan sesuaikan pengaturan database MySQL Anda:
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=reimburse_bbm
+   DB_USERNAME=root
+   DB_PASSWORD=password_mysql_anda
+
+4. MIGRASI DATABASE & SEEDER (DATA AWAL)
+   Jalankan perintah migrasi sekaligus mengisi data role & akun awal:
+   php artisan migrate:fresh --seed
+
+   *(Jika muncul pertanyaan "Would you like to create it? (yes/no)" 
+   saat memakai MySQL, ketik "yes" lalu tekan Enter).*
+
+5. HUBUNGKAN STORAGE (UNTUK UPLOAD BUKTI GAMBAR)
+   Agar gambar bukti pengajuan dan bukti transfer dapat tampil:
+   php artisan storage:link
+
+6. JALANKAN SERVER LOKAL
+   php artisan serve
+
+   Buka browser dan akses: http://127.0.0.1:8000
+
+===================================================================
+DAFTAR AKUN DEFAULT (HASIL SEEDER)
+===================================================================
+Password untuk semua akun di bawah ini adalah: 123456
+
+1. Role Admin      -> Username: admin
+2. Role Pegawai    -> Username: pegawai
+3. Role Supervisor -> Username: spv
+4. Role Finance    -> Username: finance
+===================================================================
