@@ -2,14 +2,7 @@
 @section('content')
 <div id="alpineTiket" 
      @tutup-modal-tiket.window="modalTambah = false; files = []"
-     x-data="{ 
-        modalTambah: false, 
-        tipe: 'Reimburse BBM', 
-        files: [], 
-        sliderOpen: false, 
-        sliderImgs: [], 
-        slideIdx: 0 
-     }">
+    x-data="{ tipe: 'Reimburse BBM', km: '', files: [], modalTambah: false, sliderOpen: false, sliderImgs: [], slideIdx: 0 }">
 
     <!-- 1. DIV ATAS: FILTER PENCARIAN AJAX & TOMBOL TAMBAH -->
     <div class="bg-white p-5 rounded-xl shadow-sm border mb-6">

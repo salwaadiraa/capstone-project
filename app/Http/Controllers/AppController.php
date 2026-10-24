@@ -63,40 +63,6 @@ class AppController extends Controller
         return view('tickets', compact('tickets', 'apMethods'));
     }
 
-    // Simpan Tiket Baru (Multi-Image & JSON Custom)
-    public function storeTicket(Request $request) {
-        $imgPaths = [];
-        if ($request->hasFile('img_req')) {
-            foreach ($request->file('img_req') as $file) {
-                $imgPaths[] = $file->store('bukti_tiket', 'public');
-            }
-        }
-
-        $ticket = Ticket::create([
-            'user_id' => Auth::id(),
-            'tipe_pengajuan' => $request->tipe_pengajuan,
-            'nominal_req' => $request->nominal_req,
-            'keterangan_req' => $request->keterangan_req,
-            'img_req' => $imgPaths,
-            'json_req' => $request->json_req, // Otomatis tersimpan sebagai JSON
-            'ap_method_id' => $request->ap_method_id,
-            'status' => 'Menunggu SPV'
-        ]);
-
-        TicketApproval::create([
-            'ticket_id' => $ticket->id,
-            'user_id' => Auth::id(),
-            'role' => Auth::user()->role->nama_role,
-            'status_app' => 'Mengajukan Tiket Baru',
-            'catatan_app' => 'Pengajuan awal sebesar Rp ' . number_format($request->nominal_req, 0, ',', '.')
-        ]);
-
-        if ($request->ajax()) {
-            return response()->json(['status' => 'sukses', 'pesan' => 'Tiket pengajuan dana berhasil dikirim!']);
-        }
-        return back()->with('toast', 'Tiket pengajuan dana berhasil dikirim!');
-    }
-
     // Proses Approval SPV / Finance / Pegawai + Catat Histori
     public function approveTicket(Request $request, Ticket $ticket) {
         $role = Auth::user()->role->nama_role;
@@ -194,8 +160,78 @@ class AppController extends Controller
         }
         return back()->with('toast', 'Data pegawai berhasil dihapus!');
     }
+    
+    // 2. UPDATE FUNGSI storeTicket() (Validasi Maks 80 KM/Hari & Hitung Otomatis Rp 500/KM)
+    public function storeTicket(Request $request) {
+        $tipe = $request->tipe_pengajuan;
+        $nominalReq = $request->nominal_req;
+        $jsonReq = $request->json_req ?? [];
 
-    // 7. PEGAWAI KIRIM ULANG REVISI TIKET
+        if ($tipe === 'Reimburse BBM') {
+            $km = (int) ($jsonReq['km_tempuh'] ?? 0);
+
+            if ($km <= 0 || $km > 80) {
+                $msg = 'Jarak tempuh harus antara 1 hingga maksimal 80 KM per pengajuan!';
+                return $request->ajax() ? response()->json(['status' => 'gagal', 'pesan' => $msg], 422) : back()->withErrors(['pesan' => $msg]);
+            }
+
+            // Cek total KM pengajuan BBM pegawai tersebut di hari ini (kecuali yang Ditolak)
+            $kmHariIni = Ticket::where('user_id', Auth::id())
+                ->where('tipe_pengajuan', 'Reimburse BBM')
+                ->whereDate('created_at', date('Y-m-d'))
+                ->where('status', '!=', 'Ditolak')
+                ->get()
+                ->sum(fn($t) => (int) ($t->json_req['km_tempuh'] ?? 0));
+
+            if (($kmHariIni + $km) > 80) {
+                $sisa = max(0, 80 - $kmHariIni);
+                $msg = "Batas maksimal 80 KM/hari terlampaui! Sisa kuota Anda hari ini: {$sisa} KM.";
+                return $request->ajax() ? response()->json(['status' => 'gagal', 'pesan' => $msg], 422) : back()->withErrors(['pesan' => $msg]);
+            }
+
+            // Kunci jenis BBM ke Pertalite, Harga 500/KM, dan hitung Nominal otomatis
+            $nominalReq = $km * 500;
+            $jsonReq = [
+                'km_tempuh' => $km,
+                'jenis_bbm' => 'Pertalite',
+                'tarif_per_km' => 500
+            ];
+        }
+
+        $imgPaths = [];
+        if ($request->hasFile('img_req')) {
+            foreach ($request->file('img_req') as $file) {
+                $imgPaths[] = $file->store('bukti_tiket', 'public');
+            }
+        }
+
+        // Alur 1: Pegawai Mengajukan -> Masuk ke "Menunggu Admin"
+        $ticket = Ticket::create([
+            'user_id' => Auth::id(),
+            'tipe_pengajuan' => $tipe,
+            'nominal_req' => $nominalReq,
+            'keterangan_req' => $request->keterangan_req,
+            'img_req' => $imgPaths,
+            'json_req' => $jsonReq,
+            'ap_method_id' => $request->ap_method_id,
+            'status' => 'Menunggu Admin'
+        ]);
+
+        TicketApproval::create([
+            'ticket_id' => $ticket->id,
+            'user_id' => Auth::id(),
+            'role' => Auth::user()->role->nama_role,
+            'status_app' => 'Menunggu Admin',
+            'catatan_app' => 'Mengajukan tiket baru sebesar Rp ' . number_format($nominalReq, 0, ',', '.')
+        ]);
+
+        if ($request->ajax()) {
+            return response()->json(['status' => 'sukses', 'pesan' => 'Tiket berhasil diajukan ke Admin!']);
+        }
+        return back()->with('toast', 'Tiket berhasil diajukan ke Admin!');
+    }
+
+    // 3. UPDATE FUNGSI reviseTicket() (Pegawai Kirim Revisi -> Kembali ke Admin)
     public function reviseTicket(Request $request, Ticket $ticket) {
         $imgPaths = $ticket->img_req ?? [];
         if ($request->hasFile('img_req')) {
@@ -205,24 +241,57 @@ class AppController extends Controller
             }
         }
 
+        $nominalReq = $request->nominal_req;
+        $jsonReq = $ticket->json_req ?? [];
+
+        if ($ticket->tipe_pengajuan === 'Reimburse BBM') {
+            $km = (int) $request->km_tempuh;
+            if ($km <= 0 || $km > 80) {
+                $msg = 'Jarak tempuh revisi maksimal 80 KM!';
+                return $request->ajax() ? response()->json(['status' => 'gagal', 'pesan' => $msg], 422) : back();
+            }
+
+            // Cek kuota harian (abaikan tiket yang sedang direvisi ini)
+            $kmHariIni = Ticket::where('user_id', Auth::id())
+                ->where('tipe_pengajuan', 'Reimburse BBM')
+                ->whereDate('created_at', $ticket->created_at->format('Y-m-d'))
+                ->where('id', '!=', $ticket->id)
+                ->where('status', '!=', 'Ditolak')
+                ->get()
+                ->sum(fn($t) => (int) ($t->json_req['km_tempuh'] ?? 0));
+
+            if (($kmHariIni + $km) > 80) {
+                $sisa = max(0, 80 - $kmHariIni);
+                $msg = "Revisi melebihi kuota 80 KM/hari! Sisa kuota di tanggal tersebut: {$sisa} KM.";
+                return $request->ajax() ? response()->json(['status' => 'gagal', 'pesan' => $msg], 422) : back();
+            }
+
+            $nominalReq = $km * 500;
+            $jsonReq['km_tempuh'] = $km;
+            $jsonReq['jenis_bbm'] = 'Pertalite';
+            $jsonReq['tarif_per_km'] = 500;
+        }
+
         $ticket->update([
-            'nominal_req' => $request->nominal_req,
+            'nominal_req' => $nominalReq,
             'keterangan_req' => $request->keterangan_req,
             'img_req' => $imgPaths,
-            'status' => 'Menunggu SPV'
+            'json_req' => $jsonReq,
+            'status' => 'Menunggu Admin' // Kembali ke tahap verifikasi Admin
         ]);
 
         TicketApproval::create([
             'ticket_id' => $ticket->id,
             'user_id' => Auth::id(),
             'role' => 'Pegawai',
-            'status_app' => 'Direvisi oleh Pegawai',
-            'catatan_app' => 'Pegawai memperbarui pengajuan (Nominal: Rp ' . number_format($request->nominal_req, 0, ',', '.') . ')'
+            'status_app' => 'Menunggu Admin (Hasil Revisi)',
+            'catatan_app' => 'Pegawai memperbarui pengajuan (Nominal: Rp ' . number_format($nominalReq, 0, ',', '.') . ')'
         ]);
+
         if ($request->ajax()) {
-            return response()->json(['status' => 'sukses', 'pesan' => 'Tiket #' . $ticket->id . ' berhasil direvisi dan dikirim ulang ke SPV!']);
+            return response()->json(['status' => 'sukses', 'pesan' => 'Tiket #' . $ticket->id . ' berhasil direvisi dan dikirim ulang ke Admin!']);
         }
-        return back()->with('toast', 'Tiket #' . $ticket->id . ' berhasil direvisi dan dikirim ulang ke SPV!');
+        return back()->with('toast', 'Tiket #' . $ticket->id . ' berhasil direvisi!');
     }
 
     // 1. MENU DASHBOARD (DENGAN FILTER PILIH TAHUN)
@@ -253,7 +322,10 @@ class AppController extends Controller
         }
 
         $role = Auth::user()->role->nama_role;
+        // 1. UPDATE NOTIFIKASI DI FUNGSI dashboard()
+        $role = Auth::user()->role->nama_role;
         $notifCount = 0;
+        if ($role === 'Admin') $notifCount = Ticket::where('status', 'Menunggu Admin')->count();
         if ($role === 'SPV') $notifCount = Ticket::where('status', 'Menunggu SPV')->count();
         if ($role === 'Finance') $notifCount = Ticket::where('status', 'Menunggu Finance')->count();
         if ($role === 'Pegawai') $notifCount = Ticket::where('user_id', Auth::id())->whereIn('status', ['Revisi', 'Telah Dibayar'])->count();
