@@ -18,4 +18,5 @@ class Ticket extends Model
     public function apMethod() { return $this->belongsTo(ApMethod::class); }
     public function approvals() { return $this->hasMany(TicketApproval::class); }
     public function pembayaran() { return $this->hasOne(Pembayaran::class); }
+    public function kendaraan() { return $this->belongsTo(Kendaraan::class); }
 }

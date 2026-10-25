@@ -25,7 +25,7 @@
                 <label class="font-semibold text-xs text-slate-600 block mb-1">Status</label>
                 <select name="status" class="select2-rep w-full border rounded p-2">
                     <option value="">Semua Status</option>
-                    @foreach(['Menunggu SPV', 'Revisi', 'Ditolak', 'Menunggu Finance', 'Telah Dibayar', 'Selesai'] as $st)
+                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak'] as $st)
                         <option value="{{ $st }}" {{ request('status') == $st ? 'selected' : '' }}>{{ $st }}</option>
                     @endforeach
                 </select>
@@ -87,7 +87,13 @@
                         <span class="text-xs text-slate-400">{{ $t->user->pegawai->nik ?? '-' }}</span>
                     </td>
                     <td class="p-3">
-                        <span class="text-xs font-bold text-blue-600">{{ $t->tipe_pengajuan }}</span><br>
+                        <span class="text-xs font-bold text-blue-600">{{ $t->tipe_pengajuan }}</span>
+                        @if($t->tipe_pengajuan === 'Reimburse BBM')
+                            <span class="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 ml-1 font-semibold">
+                                {{ $t->json_req['km_tempuh'] ?? 0 }} KM (Pertalite)
+                            </span>
+                        @endif
+                        <br>
                         <span class="text-xs text-slate-600">{{ $t->keterangan_req }}</span>
                     </td>
                     <td class="p-3 font-semibold">Rp {{ number_format($t->nominal_req, 0, ',', '.') }}</td>

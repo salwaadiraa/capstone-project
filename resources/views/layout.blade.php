@@ -103,65 +103,87 @@
         @yield('content')
     </main>
 
-    <!-- MODAL EDIT IDENTITAS & PAYMENT METHOD -->
+    <!-- MODAL IDENTITAS, MULTI-REKENING & KENDARAAN -->
     @php
         $peg = auth()->user()->pegawai;
-        $rek = auth()->user()->apMethods->first();
+        $rekenings = auth()->user()->apMethods;
+        $motors = \App\Models\Kendaraan::where('user_id', auth()->id())->orWhere('pemilik', 'Toko')->get();
     @endphp
     <div x-show="modalProfil" 
          x-transition.opacity.duration.200ms
          @click.self="modalProfil = false"
-         class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" style="display: none;">
-        <div x-show="modalProfil"
-             x-transition:enter="transition ease-out duration-200"
-             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-             class="bg-white p-6 rounded-2xl w-full max-w-md shadow-[0_25px_50px_-12px_rgba(0,0,0,0.4)] border border-slate-100">
-            <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
-                <i class="fa-solid fa-user-pen text-blue-600"></i> Edit Identitas & Penerimaan Dana
-            </h3>
-            <form action="/profile" method="POST" class="space-y-3 text-sm">
+         class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" style="display: none;">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto space-y-5 text-sm">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-id-card text-blue-600"></i> Identitas, Rekening & Kendaraan
+                </h3>
+                <button @click="modalProfil = false" class="text-slate-400 hover:text-red-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+
+            <!-- 1. Form Identitas Pegawai -->
+            <form action="/profile" method="POST" class="space-y-3 bg-slate-50 p-4 rounded-xl border">
                 @csrf
-                <input type="hidden" name="ap_method_id" value="{{ $rek->id ?? '' }}">
-                <div>
-                    <label class="font-semibold">Nama Lengkap</label>
-                    <input type="text" name="nama_lengkap" value="{{ $peg->nama_lengkap ?? '' }}" class="w-full border p-2 rounded mt-1" required>
+                <p class="font-bold text-slate-700"><i class="fa-solid fa-user text-blue-600 mr-1"></i> Biodata Pegawai</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <input type="text" name="nama_lengkap" value="{{ $peg->nama_lengkap ?? '' }}" placeholder="Nama Lengkap" class="border p-2 rounded bg-white" required>
+                    <input type="text" name="nik" value="{{ $peg->nik ?? '' }}" placeholder="NIK" class="border p-2 rounded bg-white" required>
+                    <input type="text" name="ttl" value="{{ $peg->ttl ?? '' }}" placeholder="Tempat, Tgl Lahir" class="border p-2 rounded bg-white" required>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="font-semibold">NIK</label>
-                        <input type="text" name="nik" value="{{ $peg->nik ?? '' }}" class="w-full border p-2 rounded mt-1" required>
-                    </div>
-                    <div>
-                        <label class="font-semibold">Tempat, Tgl Lahir</label>
-                        <input type="text" name="ttl" value="{{ $peg->ttl ?? '' }}" class="w-full border p-2 rounded mt-1" required>
-                    </div>
-                </div>
-                <hr class="my-2">
-                <p class="font-bold text-blue-600 flex items-center gap-1.5">
-                    <i class="fa-solid fa-building-columns"></i> Metode Penerimaan Pembayaran (AP Method)
-                </p>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="font-semibold">Bank / E-Wallet</label>
-                        <input type="text" name="nama_bank" value="{{ $rek->nama_bank ?? '' }}" class="w-full border p-2 rounded mt-1" required>
-                    </div>
-                    <div>
-                        <label class="font-semibold">No. Rekening</label>
-                        <input type="text" name="no_rekening" value="{{ $rek->no_rekening ?? '' }}" class="w-full border p-2 rounded mt-1" required>
-                    </div>
-                </div>
-                <div>
-                    <label class="font-semibold">Atas Nama Rekening</label>
-                    <input type="text" name="atas_nama" value="{{ $rek->atas_nama ?? '' }}" class="w-full border p-2 rounded mt-1" required>
-                </div>
-                <div class="flex justify-end gap-2 pt-3">
-                    <button type="button" @click="modalProfil = false" class="px-4 py-2 bg-slate-200 rounded-lg font-semibold">Batal</button>
-                    <button class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-md flex items-center gap-1.5">
-                        <i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan
-                    </button>
-                </div>
+                <button class="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs">Simpan Biodata</button>
             </form>
+
+            <!-- 2. Daftar & Tambah Multi-Rekening (AP Method) -->
+            <div class="bg-slate-50 p-4 rounded-xl border space-y-3">
+                <p class="font-bold text-slate-700"><i class="fa-solid fa-building-columns text-emerald-600 mr-1"></i> Daftar Rekening Penerima (Bisa > 1)</p>
+                <div class="space-y-1.5">
+                    @foreach($rekenings as $r)
+                    <div class="flex justify-between items-center bg-white p-2 rounded border text-xs">
+                        <span><b>{{ $r->nama_bank }}</b> - {{ $r->no_rekening }} (a.n {{ $r->atas_nama }})</span>
+                        <form action="/ap-methods/{{ $r->id }}/delete" method="POST">
+                            @csrf
+                            <button class="text-red-600 hover:underline font-bold"><i class="fa-solid fa-trash"></i> Hapus</button>
+                        </form>
+                    </div>
+                    @endforeach
+                </div>
+                <form action="/ap-methods" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-2 pt-2 border-t">
+                    @csrf
+                    <input type="text" name="nama_bank" placeholder="Bank / E-Wallet" class="border p-1.5 rounded bg-white text-xs" required>
+                    <input type="text" name="no_rekening" placeholder="No. Rekening" class="border p-1.5 rounded bg-white text-xs" required>
+                    <input type="text" name="atas_nama" value="{{ $peg->nama_lengkap ?? '' }}" placeholder="Atas Nama" class="border p-1.5 rounded bg-white text-xs" required>
+                    <button class="bg-emerald-600 text-white rounded font-bold text-xs py-1.5"><i class="fa-solid fa-plus"></i> Tambah Rekening</button>
+                </form>
+            </div>
+
+            <!-- 3. Daftar & Tambah Kendaraan (Pribadi / Toko) -->
+            <div class="bg-slate-50 p-4 rounded-xl border space-y-3">
+                <p class="font-bold text-slate-700"><i class="fa-solid fa-motorcycle text-orange-600 mr-1"></i> Daftar Kendaraan (Pribadi / Toko)</p>
+                <div class="space-y-1.5">
+                    @foreach($motors as $k)
+                    <div class="flex justify-between items-center bg-white p-2 rounded border text-xs">
+                        <span>
+                            <span class="px-1.5 py-0.5 rounded font-bold {{ $k->pemilik === 'Toko' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">{{ $k->pemilik }}</span>
+                            <b class="ml-1">{{ $k->merk_tipe }}</b> ({{ $k->no_plat }})
+                        </span>
+                        <form action="/kendaraans/{{ $k->id }}/delete" method="POST">
+                            @csrf
+                            <button class="text-red-600 hover:underline font-bold"><i class="fa-solid fa-trash"></i> Hapus</button>
+                        </form>
+                    </div>
+                    @endforeach
+                </div>
+                <form action="/kendaraans" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-2 pt-2 border-t">
+                    @csrf
+                    <input type="text" name="merk_tipe" placeholder="Merk/Tipe (Vario 125)" class="border p-1.5 rounded bg-white text-xs" required>
+                    <input type="text" name="no_plat" placeholder="No. Plat (D 1234 AB)" class="border p-1.5 rounded bg-white text-xs" required>
+                    <select name="pemilik" class="border p-1.5 rounded bg-white text-xs" required>
+                        <option value="Pribadi">Milik Pribadi</option>
+                        <option value="Toko">Inventaris Toko</option>
+                    </select>
+                    <button class="bg-orange-600 text-white rounded font-bold text-xs py-1.5"><i class="fa-solid fa-plus"></i> Tambah Motor</button>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -218,6 +240,5 @@
             initDatepickers();
         });
     </script>
-</body>
 </body>
 </html>

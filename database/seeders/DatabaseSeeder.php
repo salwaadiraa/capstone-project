@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use App\Models\{Role, User, Pegawai, ApMethod};
+use App\Models\{Role, User, Pegawai, ApMethod, Kendaraan};
 
 class DatabaseSeeder extends Seeder
 {
@@ -42,6 +42,28 @@ class DatabaseSeeder extends Seeder
                 'nama_bank' => 'BCA',
                 'no_rekening' => '123456789' . $user->id,
                 'atas_nama' => $u['name']
+            ]);
+
+            // Tambahkan di dalam foreach ($users as $u) pada DatabaseSeeder.php:
+            ApMethod::create([
+                'user_id' => $user->id,
+                'nama_bank' => 'Mandiri',
+                'no_rekening' => '987654321' . $user->id,
+                'atas_nama' => $u['name']
+            ]);
+
+            Kendaraan::create([
+                'user_id' => $user->id,
+                'merk_tipe' => 'Honda Vario 125',
+                'no_plat' => 'D 456' . $user->id . ' ABC',
+                'pemilik' => 'Pribadi'
+            ]);
+
+            Kendaraan::create([
+                'user_id' => null, // Kendaraan inventaris toko bisa dipakai semua pegawai
+                'merk_tipe' => 'Yamaha Mio M3 Operasional',
+                'no_plat' => 'D 999' . $user->id . ' TKO',
+                'pemilik' => 'Toko'
             ]);
         }
     }

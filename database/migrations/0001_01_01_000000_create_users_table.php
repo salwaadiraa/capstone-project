@@ -48,19 +48,27 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // 5. Tabel Tiket Pengajuan Dana
+        // 4B. Tabel Kendaraan (BARU)
+        Schema::create('kendaraans', function (Blueprint $table) {
+            $table->id();$table->foreignId('user_id')->nullable()->constrained('users')->cascadeOnDelete();
+            $table->string('merk_tipe'); // Biodata motor (Contoh: Honda Beat 2022)
+            $table->string('no_plat');   // Contoh: B 1234 XYZ
+            $table->enum('pemilik', ['Pribadi', 'Toko'])->default('Pribadi');$table->timestamps();
+        });
+
+        // 5. Tabel Tiket Pengajuan Reimburse BBM
         Schema::create('tickets', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->enum('tipe_pengajuan', ['Reimburse BBM', 'Barang Rusak']);
+            $table->id();$table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+            $table->foreignId('kendaraan_id')->nullable()->constrained('kendaraans')->nullOnDelete();
+            $table->foreignId('ap_method_id')->nullable()->constrained('ap_methods')->nullOnDelete();
+            $table->string('tipe_pengajuan')->default('Reimburse BBM'); // Satuan / Periode
+            $table->date('tgl_reimburse')->nullable(); // Tanggal utama / awal
+            $table->date('tgl_akhir')->nullable();     // Tanggal akhir (jika periode)
             $table->integer('nominal_req');
-            $table->integer('nominal_app')->nullable(); // Nominal yang disetujui
-            $table->text('keterangan_req');
-            $table->json('img_req'); // Array path gambar bukti (bisa > 1 gambar)
-            $table->json('json_req'); // Data dinamis (KM/BBM atau Nama/Harga Barang)
-            $table->string('status')->default('Menunggu SPV');
-            $table->foreignId('ap_method_id')->nullable()->constrained('ap_methods');
-            $table->timestamps();
+            $table->integer('nominal_app')->nullable();$table->text('keterangan_req');
+            $table->json('img_req');  // Array bukti foto
+            $table->json('json_req'); // Array detail harian: [{tgl, km_tempuh, nominal, keterangan, img}]
+            $table->string('status')->default('Menunggu Admin');$table->timestamps();
         });
 
         // 6. Tabel Histori Approval Tiket
