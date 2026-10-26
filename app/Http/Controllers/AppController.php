@@ -619,12 +619,12 @@ class AppController extends Controller
     }
 
     // =========================================================================
-    // 10. UPDATE PROFIL, METODE PEMBAYARAN, & PASSWORD USER
+    // 10. UPDATE PROFIL, MULTI-REKENING (PEGAWAI), & KENDARAAN (ADMIN) VIA AJAX
     // =========================================================================
     public function updateProfile(Request $request) 
     {
         $user = Auth::user();
-        $user->pegawai()->updateOrCreate(
+        $pegawai = $user->pegawai()->updateOrCreate(
             ['user_id' => $user->id],
             [
                 'nama_lengkap' => $request->nama_lengkap, 
@@ -632,15 +632,16 @@ class AppController extends Controller
                 'ttl'          => $request->ttl
             ]
         );
-        $user->apMethods()->updateOrCreate(
-            ['id' => $request->ap_method_id],
-            [
-                'nama_bank'   => $request->nama_bank, 
-                'no_rekening' => $request->no_rekening, 
-                'atas_nama'   => $request->atas_nama
-            ]
-        );
-        return back()->with('toast', 'Identitas & Metode Pembayaran berhasil diperbarui!');
+        $user->update(['name' => $request->nama_lengkap]);
+
+        if ($request->ajax()) {
+            return response()->json([
+                'status' => 'sukses', 
+                'pesan'  => 'Biodata diri berhasil diperbarui!',
+                'data'   => $pegawai
+            ]);
+        }
+        return back()->with('toast', 'Biodata diri berhasil diperbarui!');
     }
 
     public function updatePassword(Request $request) 
@@ -652,39 +653,73 @@ class AppController extends Controller
     // =========================================================================
     // 11. TAMBAH & HAPUS MULTI REKENING (AP METHOD) & KENDARAAN
     // =========================================================================
+    // KHUSUS PEGAWAI: Tambah Rekening via AJAX
     public function storeApMethod(Request $request) 
     {
-        ApMethod::create([
+        if (Auth::user()->role->nama_role !== 'Pegawai') abort(403);
+
+        $rek = ApMethod::create([
             'user_id'     => Auth::id(),
             'nama_bank'   => $request->nama_bank,
             'no_rekening' => $request->no_rekening,
             'atas_nama'   => $request->atas_nama
         ]);
+
+        if ($request->ajax()) {
+            return response()->json([
+                'status' => 'sukses',
+                'pesan'  => 'Rekening baru berhasil ditambahkan!',
+                'data'   => $rek
+            ]);
+        }
         return back()->with('toast', 'Rekening baru berhasil ditambahkan!');
     }
 
-    public function deleteApMethod(ApMethod $apMethod) 
+    // KHUSUS PEGAWAI: Hapus Rekening via AJAX
+    public function deleteApMethod(Request $request, ApMethod $apMethod) 
     {
-        if ($apMethod->user_id === Auth::id()) {
-            $apMethod->delete();
+        if (Auth::user()->role->nama_role !== 'Pegawai' || $apMethod->user_id !== Auth::id()) {
+            abort(403);
+        }
+        $apMethod->delete();
+
+        if ($request->ajax()) {
+            return response()->json(['status' => 'sukses', 'pesan' => 'Rekening berhasil dihapus!']);
         }
         return back()->with('toast', 'Rekening berhasil dihapus!');
     }
 
+    // KHUSUS ADMIN: Tambah Kendaraan via AJAX
     public function storeKendaraan(Request $request) 
     {
-        Kendaraan::create([
-            'user_id'   => $request->pemilik === 'Toko' ? null : Auth::id(),
+        if (Auth::user()->role->nama_role !== 'Admin') abort(403);
+
+        $motor = \App\Models\Kendaraan::create([
+            'user_id'   => null,
             'merk_tipe' => $request->merk_tipe,
             'no_plat'   => strtoupper($request->no_plat),
             'pemilik'   => $request->pemilik
         ]);
-        return back()->with('toast', 'Data kendaraan berhasil ditambahkan!');
+
+        if ($request->ajax()) {
+            return response()->json([
+                'status' => 'sukses',
+                'pesan'  => 'Kendaraan baru berhasil ditambahkan!',
+                'data'   => $motor
+            ]);
+        }
+        return back()->with('toast', 'Kendaraan baru berhasil ditambahkan!');
     }
 
-    public function deleteKendaraan(Kendaraan $kendaraan) 
+    // KHUSUS ADMIN: Hapus Kendaraan via AJAX
+    public function deleteKendaraan(Request $request, \App\Models\Kendaraan $kendaraan) 
     {
+        if (Auth::user()->role->nama_role !== 'Admin') abort(403);
         $kendaraan->delete();
+
+        if ($request->ajax()) {
+            return response()->json(['status' => 'sukses', 'pesan' => 'Data kendaraan berhasil dihapus!']);
+        }
         return back()->with('toast', 'Data kendaraan berhasil dihapus!');
     }
 }

@@ -31,4 +31,9 @@ Route::middleware('auth')->group(function () {
     // Tambahkan di dalam Route::middleware('auth')->group:
     Route::get('/ticket-reports', [AppController::class, 'ticketReports']);
     Route::get('/ticket-reports/export', [AppController::class, 'exportTicketReports']);
+
+    Route::post('/ap-methods', [AppController::class, 'storeApMethod']);
+    Route::post('/ap-methods/{apMethod}/delete', [AppController::class, 'deleteApMethod']);
+    Route::post('/kendaraans', [AppController::class, 'storeKendaraan']);
+    Route::post('/kendaraans/{kendaraan}/delete', [AppController::class, 'deleteKendaraan']);
 });

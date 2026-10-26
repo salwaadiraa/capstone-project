@@ -81,7 +81,8 @@
                 </button>
                 <div x-show="open" @click.outside="open = false" class="absolute right-0 mt-2 w-56 bg-white border rounded-lg shadow-lg py-1 z-40 text-sm">
                     <button @click="modalProfil = true; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-100 flex items-center gap-2.5 text-slate-700">
-                        <i class="fa-solid fa-id-card text-blue-600 w-4"></i> Edit Identitas & Rekening
+                        <i class="fa-solid fa-id-card text-blue-600 w-4"></i> 
+                        {{ auth()->user()->role->nama_role === 'Pegawai' ? 'Edit Identitas & Rekening' : 'Edit Identitas Diri' }}
                     </button>
                     <button @click="modalPass = true; open = false" class="w-full text-left px-4 py-2 hover:bg-slate-100 flex items-center gap-2.5 text-slate-700">
                         <i class="fa-solid fa-key text-amber-500 w-4"></i> Ganti Password
@@ -103,87 +104,69 @@
         @yield('content')
     </main>
 
-    <!-- MODAL IDENTITAS, MULTI-REKENING & KENDARAAN -->
+    <!-- MODAL EDIT IDENTITAS & MULTI-REKENING (REKENING HANYA MUNCUL DI PEGAWAI) -->
     @php
         $peg = auth()->user()->pegawai;
         $rekenings = auth()->user()->apMethods;
-        $motors = \App\Models\Kendaraan::where('user_id', auth()->id())->orWhere('pemilik', 'Toko')->get();
     @endphp
     <div x-show="modalProfil" 
          x-transition.opacity.duration.200ms
          @click.self="modalProfil = false"
          class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" style="display: none;">
-        <div class="bg-white p-6 rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto space-y-5 text-sm">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto space-y-4 text-sm">
             <div class="flex justify-between items-center border-b pb-3">
                 <h3 class="font-bold text-lg flex items-center gap-2">
-                    <i class="fa-solid fa-id-card text-blue-600"></i> Identitas, Rekening & Kendaraan
+                    <i class="fa-solid fa-id-card text-blue-600"></i> 
+                    {{ auth()->user()->role->nama_role === 'Pegawai' ? 'Edit Identitas & Rekening Pencairan' : 'Edit Identitas Diri' }}
                 </h3>
-                <button @click="modalProfil = false" class="text-slate-400 hover:text-red-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                <button type="button" @click="modalProfil = false" class="text-slate-400 hover:text-red-600"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
 
-            <!-- 1. Form Identitas Pegawai -->
-            <form action="/profile" method="POST" class="space-y-3 bg-slate-50 p-4 rounded-xl border">
+            <!-- 1. Form Biodata Diri (POST AJAX) -->
+            <form id="formBiodataAjax" onsubmit="simpanBiodataAjax(event)" class="space-y-3 bg-slate-50 p-4 rounded-xl border">
                 @csrf
-                <p class="font-bold text-slate-700"><i class="fa-solid fa-user text-blue-600 mr-1"></i> Biodata Pegawai</p>
+                <p class="font-bold text-slate-700 text-xs uppercase"><i class="fa-solid fa-user text-blue-600 mr-1"></i> Biodata Diri</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <input type="text" name="nama_lengkap" value="{{ $peg->nama_lengkap ?? '' }}" placeholder="Nama Lengkap" class="border p-2 rounded bg-white" required>
-                    <input type="text" name="nik" value="{{ $peg->nik ?? '' }}" placeholder="NIK" class="border p-2 rounded bg-white" required>
-                    <input type="text" name="ttl" value="{{ $peg->ttl ?? '' }}" placeholder="Tempat, Tgl Lahir" class="border p-2 rounded bg-white" required>
+                    <input type="text" name="nama_lengkap" value="{{ $peg->nama_lengkap ?? auth()->user()->name }}" placeholder="Nama Lengkap" class="border p-2 rounded bg-white text-xs" required>
+                    <input type="text" name="nik" value="{{ $peg->nik ?? '' }}" placeholder="NIK" class="border p-2 rounded bg-white text-xs" required>
+                    <input type="text" name="ttl" value="{{ $peg->ttl ?? '' }}" placeholder="Tempat, Tgl Lahir" class="border p-2 rounded bg-white text-xs" required>
                 </div>
-                <button class="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs">Simpan Biodata</button>
+                <button type="submit" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shadow-sm">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i> Simpan Biodata
+                </button>
             </form>
 
-            <!-- 2. Daftar & Tambah Multi-Rekening (AP Method) -->
+            <!-- 2. Pengelolaan Multi-Rekening (MURNI HANYA UNTUK PEGAWAI & VIA AJAX) -->
+            @if(auth()->user()->role->nama_role === 'Pegawai')
             <div class="bg-slate-50 p-4 rounded-xl border space-y-3">
-                <p class="font-bold text-slate-700"><i class="fa-solid fa-building-columns text-emerald-600 mr-1"></i> Daftar Rekening Penerima (Bisa > 1)</p>
-                <div class="space-y-1.5">
-                    @foreach($rekenings as $r)
-                    <div class="flex justify-between items-center bg-white p-2 rounded border text-xs">
-                        <span><b>{{ $r->nama_bank }}</b> - {{ $r->no_rekening }} (a.n {{ $r->atas_nama }})</span>
-                        <form action="/ap-methods/{{ $r->id }}/delete" method="POST">
-                            @csrf
-                            <button class="text-red-600 hover:underline font-bold"><i class="fa-solid fa-trash"></i> Hapus</button>
-                        </form>
+                <p class="font-bold text-slate-700 text-xs uppercase"><i class="fa-solid fa-building-columns text-emerald-600 mr-1"></i> Daftar Rekening Pencairan Saya</p>
+                
+                <!-- Container List Rekening yang akan di-append otomatis -->
+                <div id="listRekeningPegawai" class="space-y-1.5">
+                    @forelse($rekenings as $r)
+                    <div id="item-rek-{{ $r->id }}" class="flex justify-between items-center bg-white p-2.5 rounded-lg border text-xs shadow-2xs">
+                        <span><b class="text-emerald-700">{{ $r->nama_bank }}</b> - {{ $r->no_rekening }} (a.n {{ $r->atas_nama }})</span>
+                        <button type="button" onclick="hapusRekeningAjax({{ $r->id }})" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded font-bold transition">
+                            <i class="fa-solid fa-trash"></i> Hapus
+                        </button>
                     </div>
-                    @endforeach
+                    @empty
+                    <p id="emptyRekeningMsg" class="text-xs text-slate-400 italic">Belum ada rekening yang ditambahkan.</p>
+                    @endforelse
                 </div>
-                <form action="/ap-methods" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-2 pt-2 border-t">
-                    @csrf
-                    <input type="text" name="nama_bank" placeholder="Bank / E-Wallet" class="border p-1.5 rounded bg-white text-xs" required>
-                    <input type="text" name="no_rekening" placeholder="No. Rekening" class="border p-1.5 rounded bg-white text-xs" required>
-                    <input type="text" name="atas_nama" value="{{ $peg->nama_lengkap ?? '' }}" placeholder="Atas Nama" class="border p-1.5 rounded bg-white text-xs" required>
-                    <button class="bg-emerald-600 text-white rounded font-bold text-xs py-1.5"><i class="fa-solid fa-plus"></i> Tambah Rekening</button>
-                </form>
-            </div>
 
-            <!-- 3. Daftar & Tambah Kendaraan (Pribadi / Toko) -->
-            <div class="bg-slate-50 p-4 rounded-xl border space-y-3">
-                <p class="font-bold text-slate-700"><i class="fa-solid fa-motorcycle text-orange-600 mr-1"></i> Daftar Kendaraan (Pribadi / Toko)</p>
-                <div class="space-y-1.5">
-                    @foreach($motors as $k)
-                    <div class="flex justify-between items-center bg-white p-2 rounded border text-xs">
-                        <span>
-                            <span class="px-1.5 py-0.5 rounded font-bold {{ $k->pemilik === 'Toko' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">{{ $k->pemilik }}</span>
-                            <b class="ml-1">{{ $k->merk_tipe }}</b> ({{ $k->no_plat }})
-                        </span>
-                        <form action="/kendaraans/{{ $k->id }}/delete" method="POST">
-                            @csrf
-                            <button class="text-red-600 hover:underline font-bold"><i class="fa-solid fa-trash"></i> Hapus</button>
-                        </form>
-                    </div>
-                    @endforeach
-                </div>
-                <form action="/kendaraans" method="POST" class="grid grid-cols-1 md:grid-cols-4 gap-2 pt-2 border-t">
+                <!-- Form Tambah Rekening Baru (POST AJAX Tanpa Reload) -->
+                <form id="formTambahRekeningAjax" onsubmit="tambahRekeningAjax(event)" class="grid grid-cols-1 md:grid-cols-3 gap-2 pt-3 border-t text-xs">
                     @csrf
-                    <input type="text" name="merk_tipe" placeholder="Merk/Tipe (Vario 125)" class="border p-1.5 rounded bg-white text-xs" required>
-                    <input type="text" name="no_plat" placeholder="No. Plat (D 1234 AB)" class="border p-1.5 rounded bg-white text-xs" required>
-                    <select name="pemilik" class="border p-1.5 rounded bg-white text-xs" required>
-                        <option value="Pribadi">Milik Pribadi</option>
-                        <option value="Toko">Inventaris Toko</option>
-                    </select>
-                    <button class="bg-orange-600 text-white rounded font-bold text-xs py-1.5"><i class="fa-solid fa-plus"></i> Tambah Motor</button>
+                    <input type="text" name="nama_bank" placeholder="Bank / E-Wallet (BCA)" class="border p-2 rounded bg-white" required>
+                    <input type="text" name="no_rekening" placeholder="No. Rekening" class="border p-2 rounded bg-white" required>
+                    <input type="text" name="atas_nama" value="{{ $peg->nama_lengkap ?? auth()->user()->name }}" placeholder="Atas Nama" class="border p-2 rounded bg-white" required>
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold py-2 md:col-span-3 shadow-sm transition">
+                        <i class="fa-solid fa-plus mr-1"></i> Tambah ke Daftar Rekening
+                    </button>
                 </form>
             </div>
+            @endif
         </div>
     </div>
 
@@ -239,6 +222,66 @@
         $(document).ready(function() {
             initDatepickers();
         });
+
+        // Simpan Biodata via AJAX
+        function simpanBiodataAjax(e) {
+            e.preventDefault();
+            const form = document.getElementById('formBiodataAjax');
+            Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+            $.post('/profile', $(form).serialize(), function(res) {
+                Swal.fire({ icon: 'success', title: 'Berhasil!', text: res.pesan, timer: 1300, showConfirmButton: false });
+            }).fail(() => Swal.fire('Gagal', 'Tidak dapat menyimpan biodata.', 'error'));
+        }
+
+        // Tambah Rekening Pegawai via AJAX + Langsung masuk ke List & Dropdown Pengajuan
+        function tambahRekeningAjax(e) {
+            e.preventDefault();
+            const form = document.getElementById('formTambahRekeningAjax');
+            Swal.fire({ title: 'Menambahkan Rekening...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+            $.post('/ap-methods', $(form).serialize(), function(res) {
+                Swal.fire({ icon: 'success', title: 'Berhasil!', text: res.pesan, timer: 1200, showConfirmButton: false });
+                $('#emptyRekeningMsg').remove();
+
+                let r = res.data;
+                let rowHtml = `
+                    <div id="item-rek-${r.id}" class="flex justify-between items-center bg-white p-2.5 rounded-lg border text-xs shadow-2xs">
+                        <span><b class="text-emerald-700">${r.nama_bank}</b> - ${r.no_rekening} (a.n ${r.atas_nama})</span>
+                        <button type="button" onclick="hapusRekeningAjax(${r.id})" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded font-bold transition">
+                            <i class="fa-solid fa-trash"></i> Hapus
+                        </button>
+                    </div>`;
+                $('#listRekeningPegawai').append(rowHtml);
+
+                // Tambahkan juga ke semua dropdown pilih rekening di halaman pengajuan (jika sedang di menu tiket)
+                $('select[name="ap_method_id"]').append(
+                    `<option value="${r.id}">${r.nama_bank} - ${r.no_rekening} (a.n ${r.atas_nama})</option>`
+                );
+
+                form.reset();
+            }).fail(() => Swal.fire('Gagal', 'Pastikan seluruh kolom rekening terisi.', 'error'));
+        }
+
+        // Hapus Rekening Pegawai via AJAX
+        function hapusRekeningAjax(id) {
+            Swal.fire({
+                title: 'Hapus Rekening Ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.post(`/ap-methods/${id}/delete`, { _token: '{{ csrf_token() }}' }, function(res) {
+                        $(`#item-rek-${id}`).fadeOut(200, function() { $(this).remove(); });
+                        $(`select[name="ap_method_id"] option[value="${id}"]`).remove();
+                        Swal.fire({ icon: 'success', title: 'Terhapus!', text: res.pesan, timer: 1200, showConfirmButton: false });
+                    });
+                }
+            });
+        }
     </script>
 </body>
 </html>
