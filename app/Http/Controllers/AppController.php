@@ -140,9 +140,7 @@ class AppController extends Controller
         $tickets = $query->paginate(5)->withQueryString();
         $apMethods = $user->apMethods;
         // Ambil kendaraan pribadi user + kendaraan milik Toko
-        $kendaraans = Kendaraan::where('user_id', $user->id)
-            ->orWhere('pemilik', 'Toko')
-            ->get();
+        $kendaraans = Kendaraan::get();
 
         if ($request->ajax()) {
             return view('_ticket_list', compact('tickets'))->render();

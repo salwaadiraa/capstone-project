@@ -24,9 +24,10 @@
                 return;
             }
             if (diff > 10) {
-                Swal.fire('Maksimal 10 Hari', 'Pengajuan periode maksimal 10 hari sekaligus!', 'warning');
-                this.rowsPeriode = [];
-                return;
+                Swal.fire('Maksimal 10 Hari', 'Pengajuan periode maksimal 10 hari sekaligus! Tanggal akhir direset ke tanggal mulai.', 'warning');
+                this.tglSelesai = this.tglMulai;
+                start = new Date(this.tglMulai);
+                diff = 1; // Kembali menjadi 1 hari
             }
             let temp = [];
             for (let i = 0; i < diff; i++) {
@@ -75,7 +76,7 @@
                 </button>
 
                 @if(auth()->user()->role->nama_role === 'Pegawai')
-                <button type="button" @click="modalSatuan = true" 
+                <button type="button" style="display:none;" @click="modalSatuan = true" 
                         class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold text-xs h-[38px] flex items-center gap-1 shadow-sm">
                     <i class="fa-solid fa-plus"></i> Satuan
                 </button>
