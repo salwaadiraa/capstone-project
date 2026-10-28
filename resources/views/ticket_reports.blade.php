@@ -25,7 +25,7 @@
                 <label class="font-semibold text-xs text-slate-600 block mb-1">Status</label>
                 <select name="status" class="select2-rep w-full border rounded p-2">
                     <option value="">Semua Status</option>
-                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak'] as $st)
+                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak', 'Dibatalkan'] as $st)
                         <option value="{{ $st }}" {{ request('status') == $st ? 'selected' : '' }}>{{ $st }}</option>
                     @endforeach
                 </select>
@@ -59,9 +59,9 @@
                 <a href="/ticket-reports/export?{{ http_build_query(request()->all()) }}" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5">
                     <i class="fa-solid fa-file-csv text-sm"></i> Export Excel (CSV)
                 </a>
-                <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                    <i class="fa-solid fa-print text-sm"></i> Cetak / PDF
-                </button>
+                <a href="/ticket-reports/print?{{ http_build_query(request()->all()) }}" target="_blank" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-print text-sm"></i> Cetak Rekap / PDF
+                </a>
             </div>
         </div>
 
@@ -71,10 +71,11 @@
                     <th class="p-3">Tgl Pengajuan</th>
                     <th class="p-3">ID Tiket</th>
                     <th class="p-3">Pegawai</th>
-                    <th class="p-3">Tipe & Keterangan</th>
+                    <th class="p-3">Periode & Keterangan</th>
                     <th class="p-3">Nominal Diajukan</th>
                     <th class="p-3">Nominal ACC</th>
                     <th class="p-3">Status</th>
+                    <th class="p-3 text-center">Cetak Detail</th>
                 </tr>
             </thead>
             <tbody>
@@ -88,12 +89,9 @@
                     </td>
                     <td class="p-3">
                         <span class="text-xs font-bold text-blue-600">{{ $t->tipe_pengajuan }}</span>
-                        @if($t->tipe_pengajuan === 'Reimburse BBM')
-                            <span class="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 ml-1 font-semibold">
-                                {{ $t->json_req['km_tempuh'] ?? 0 }} KM (Pertalite)
-                            </span>
-                        @endif
-                        <br>
+                        <span class="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 ml-1 font-semibold">
+                            {{ $t->json_req['km_tempuh'] ?? 0 }} KM
+                        </span><br>
                         <span class="text-xs text-slate-600">{{ $t->keterangan_req }}</span>
                     </td>
                     <td class="p-3 font-semibold">Rp {{ number_format($t->nominal_req, 0, ',', '.') }}</td>
@@ -103,10 +101,17 @@
                     <td class="p-3">
                         <span class="px-2 py-0.5 rounded bg-slate-200 font-bold text-xs">{{ $t->status }}</span>
                     </td>
+                    <td class="p-3 text-center">
+                        <!-- Buka New Tab / Popup Cetak Detail per Tiket -->
+                        <a href="/tickets/{{ $t->id }}/print" target="_blank" 
+                            class="inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition">
+                            <i class="fa-solid fa-print"></i> Print #{{ $t->id }}
+                        </a>
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="text-center py-8 text-slate-400">Tidak ada data tiket yang sesuai dengan filter.</td>
+                    <td colspan="8" class="text-center py-8 text-slate-400">Tidak ada data tiket yang sesuai dengan filter.</td>
                 </tr>
                 @endforelse
             </tbody>

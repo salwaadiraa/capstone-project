@@ -12,7 +12,6 @@
             <th class="p-3">Tempat, Tgl Lahir</th>
             <th class="p-3">Username</th>
             <th class="p-3">Role Akses</th>
-            <th class="p-3">Rekening (AP Method)</th>
             <th class="p-3 text-right">Aksi</th>
         </tr>
     </thead>
@@ -28,26 +27,37 @@
             <td class="p-3">
                 <span class="bg-blue-100 text-blue-800 px-2.5 py-0.5 rounded text-xs font-bold">{{ $u->role->nama_role }}</span>
             </td>
-            <td class="p-3 text-xs">
-                @php $rek = $u->apMethods->first(); @endphp
-                <i class="fa-solid fa-building-columns text-slate-400 mr-1"></i>
-                {{ $rek ? $rek->nama_bank . ' - ' . $rek->no_rekening : 'Belum diatur' }}
-            </td>
             <td class="p-3 text-right">
-                @if($u->id !== auth()->id())
-                <form action="/users/{{ $u->id }}/delete" method="POST">
-                    @csrf
-                    <button type="button" onclick="konfirmasiHapusPegawai(this, '{{ $u->pegawai->nama_lengkap ?? $u->name }}')" 
-                            class="bg-red-50 hover:bg-red-600 text-red-600 hover:text-white px-3 py-1 rounded text-xs font-bold transition">
-                        <i class="fa-solid fa-trash-can mr-1"></i> Hapus
+                <div class="flex justify-end gap-1.5">
+                    <!-- Tombol Edit Pegawai -->
+                    <button type="button" 
+                            onclick="bukaModalEditUser({
+                                id: {{ $u->id }},
+                                nama_lengkap: '{{ addslashes($u->pegawai->nama_lengkap ?? $u->name) }}',
+                                nik: '{{ addslashes($u->pegawai->nik ?? '') }}',
+                                ttl: '{{ addslashes($u->pegawai->ttl ?? '') }}',
+                                username: '{{ addslashes($u->username) }}',
+                                role_id: {{ $u->role_id }}
+                            })"
+                            class="bg-amber-50 hover:bg-amber-500 text-amber-600 hover:text-white px-3 py-1 rounded text-xs font-bold transition">
+                        <i class="fa-solid fa-pen-to-square mr-1"></i> Edit
                     </button>
-                </form>
-                @endif
+
+                    @if($u->id !== auth()->id())
+                    <form action="/users/{{ $u->id }}/delete" method="POST">
+                        @csrf
+                        <button type="button" onclick="konfirmasiHapusPegawai(this, '{{ addslashes($u->pegawai->nama_lengkap ?? $u->name) }}')" 
+                                class="bg-red-50 hover:bg-red-600 text-red-600 hover:text-white px-3 py-1 rounded text-xs font-bold transition">
+                            <i class="fa-solid fa-trash-can mr-1"></i> Hapus
+                        </button>
+                    </form>
+                    @endif
+                </div>
             </td>
         </tr>
         @empty
         <tr>
-            <td colspan="6" class="text-center py-10 text-slate-400">Tidak ada data pegawai yang ditemukan.</td>
+            <td colspan="5" class="text-center py-10 text-slate-400">Tidak ada data pegawai yang ditemukan.</td>
         </tr>
         @endforelse
     </tbody>

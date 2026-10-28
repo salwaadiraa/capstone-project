@@ -1,8 +1,10 @@
 @extends('layout')
 @section('content')
-<div @tutup-modal-user.window="modalUser = false" x-data="{ modalUser: false, modalKendaraan: false }">
+<div id="alpineUsers" 
+     @tutup-modal-user.window="modalUser = false; modalEditUser = false" 
+     x-data="{ modalUser: false, modalEditUser: false, modalKendaraan: false, pemilikMotor: 'Pribadi', editData: { id: '', nama_lengkap: '', nik: '', ttl: '', username: '', role_id: '' } }">
 
-    <!-- 1. DIV ATAS: FILTER PENCARIAN PEGAWAI, TOMBOL MODAL KENDARAAN & TAMBAH PEGAWAI (KHUSUS ADMIN) -->
+    <!-- 1. DIV ATAS: FILTER PENCARIAN PEGAWAI, TOMBOL MODAL KENDARAAN & TAMBAH PEGAWAI -->
     <div class="bg-white p-5 rounded-xl shadow-sm border mb-6">
         <form id="formFilterUser" onsubmit="cariUserAjax(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end text-sm">
             <div class="md:col-span-4">
@@ -26,13 +28,11 @@
                     <i class="fa-solid fa-rotate-right"></i>
                 </button>
 
-                <!-- Tombol Buka Modal Master Kendaraan (Khusus Admin) -->
                 <button type="button" @click="modalKendaraan = true" 
                         class="bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs h-[38px] whitespace-nowrap flex items-center gap-1.5 shadow-sm">
                     <i class="fa-solid fa-motorcycle"></i> Kelola Kendaraan
                 </button>
 
-                <!-- Tombol Buka Modal Tambah Pegawai -->
                 <button type="button" @click="modalUser = true; setTimeout(() => initSelect2UserModal(), 50)" 
                         class="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-lg font-bold text-xs h-[38px] whitespace-nowrap flex items-center gap-1.5 shadow-sm">
                     <i class="fa-solid fa-user-plus"></i> Tambah Pegawai
@@ -47,8 +47,12 @@
     </div>
 
     <!-- ======================================================================= -->
-    <!-- 3. MODAL KELOLA MASTER KENDARAAN (KHUSUS ADMIN - POST AJAX)             -->
+    <!-- 3. MODAL KELOLA MASTER KENDARAAN (DENGAN PILIHAN PEGAWAI JIKA PRIBADI)  -->
     <!-- ======================================================================= -->
+    @php
+        $allPegawais = \App\Models\User::with('pegawai')->whereHas('role', fn($q) => $q->where('nama_role', 'Pegawai'))->get();
+        $allMotors = \App\Models\Kendaraan::with('user.pegawai')->latest()->get();
+    @endphp
     <div x-show="modalKendaraan" 
          x-transition.opacity.duration.200ms
          @click.self="modalKendaraan = false"
@@ -63,29 +67,56 @@
             </div>
 
             <!-- Form Tambah Kendaraan via POST AJAX -->
-            <form id="formTambahKendaraanAjax" onsubmit="tambahKendaraanAjax(event)" class="grid grid-cols-1 md:grid-cols-4 gap-2 bg-orange-50/50 p-3.5 rounded-xl border border-orange-200 text-xs">
+            <form id="formTambahKendaraanAjax" onsubmit="tambahKendaraanAjax(event)" class="space-y-2.5 bg-orange-50/50 p-3.5 rounded-xl border border-orange-200 text-xs">
                 @csrf
-                <input type="text" name="merk_tipe" placeholder="Merk/Tipe (Vario 125)" class="border p-2 rounded-lg bg-white" required>
-                <input type="text" name="no_plat" placeholder="No. Plat (D 1234 AB)" class="border p-2 rounded-lg bg-white uppercase" required>
-                <select name="pemilik" class="border p-2 rounded-lg bg-white font-semibold" required>
-                    <option value="Pribadi">Milik Pribadi</option>
-                    <option value="Toko">Inventaris Toko</option>
-                </select>
-                <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold py-2 shadow-sm transition">
-                    <i class="fa-solid fa-plus mr-1"></i> Tambah Motor
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div>
+                        <label class="font-bold text-slate-600 block mb-1">Merk / Tipe Motor</label>
+                        <input type="text" name="merk_tipe" placeholder="Contoh: Honda Vario 125" class="w-full border p-2 rounded-lg bg-white" required>
+                    </div>
+                    <div>
+                        <label class="font-bold text-slate-600 block mb-1">Nomor Plat</label>
+                        <input type="text" name="no_plat" placeholder="Contoh: D 1234 ABC" class="w-full border p-2 rounded-lg bg-white uppercase" required>
+                    </div>
+                    <div>
+                        <label class="font-bold text-slate-600 block mb-1">Status Kepemilikan</label>
+                        <select name="pemilik" x-model="pemilikMotor" class="w-full border p-2 rounded-lg bg-white font-semibold" required>
+                            <option value="Pribadi">Milik Pribadi</option>
+                            <option value="Toko">Inventaris Toko</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Muncul jika Kepemilikan = Pribadi -->
+                <div x-show="pemilikMotor === 'Pribadi'" x-transition class="pt-1">
+                    <label class="font-bold text-blue-700 block mb-1"><i class="fa-solid fa-user-tag mr-1"></i> Pilih Pegawai Pemilik Motor Pribadi:</label>
+                    <select name="user_id" :required="pemilikMotor === 'Pribadi'" :disabled="pemilikMotor !== 'Pribadi'" class="w-full border p-2 rounded-lg bg-white font-semibold">
+                        <option value="">-- Pilih Pegawai --</option>
+                        @foreach($allPegawais as $pg)
+                            <option value="{{ $pg->id }}">{{ $pg->pegawai->nama_lengkap ?? $pg->name }} ({{ $pg->pegawai->nik ?? $pg->username }})</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold py-2 shadow-sm transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Tambah ke Daftar Kendaraan
                 </button>
             </form>
 
-            <!-- Daftar List Kendaraan yang langsung bertambah tanpa reload -->
+            <!-- Daftar List Kendaraan -->
             <div class="max-h-72 overflow-y-auto pr-1">
                 <div id="listKendaraanAdmin" class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                    @php $allMotors = \App\Models\Kendaraan::latest()->get(); @endphp
                     @forelse($allMotors as $motor)
                     <div id="item-motor-{{ $motor->id }}" class="border p-3 rounded-xl flex justify-between items-center bg-slate-50 text-xs">
                         <div>
                             <span class="px-2 py-0.5 rounded font-bold text-[10px] {{ $motor->pemilik === 'Toko' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">
                                 {{ $motor->pemilik }}
                             </span>
+                            @if($motor->pemilik === 'Pribadi' && $motor->user)
+                                <span class="text-[11px] font-bold text-slate-700 ml-1">
+                                    <i class="fa-solid fa-user text-blue-500 mr-0.5"></i> {{ $motor->user->pegawai->nama_lengkap ?? $motor->user->name }}
+                                </span>
+                            @endif
                             <p class="font-bold text-slate-800 mt-1">{{ $motor->merk_tipe }}</p>
                             <p class="text-slate-500 font-mono">{{ $motor->no_plat }}</p>
                         </div>
@@ -102,13 +133,10 @@
     </div>
 
     <!-- ======================================================================= -->
-    <!-- 4. MODAL TAMBAH PEGAWAI BARU (TANPA INPUT REKENING)                     -->
+    <!-- 4. MODAL TAMBAH PEGAWAI BARU                                            -->
     <!-- ======================================================================= -->
-    <div x-show="modalUser" 
-         x-transition.opacity.duration.200ms
-         @click.self="modalUser = false"
+    <div x-show="modalUser" x-transition.opacity.duration.200ms @click.self="modalUser = false"
          class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" style="display: none;">
-         
         <div class="bg-white p-6 rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100">
             <div class="flex justify-between items-center border-b pb-3 mb-4">
                 <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-user-plus text-blue-600 mr-1.5"></i> Tambah Pegawai & Akun Baru</h3>
@@ -160,6 +188,63 @@
             </form>
         </div>
     </div>
+
+    <!-- ======================================================================= -->
+    <!-- 5. MODAL EDIT DATA PEGAWAI (KHUSUS ADMIN)                               -->
+    <!-- ======================================================================= -->
+    <div x-show="modalEditUser" x-transition.opacity.duration.200ms @click.self="modalEditUser = false"
+         class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" style="display: none;">
+        <div class="bg-white p-6 rounded-2xl max-w-xl w-full shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-user-pen text-amber-500 mr-1.5"></i> Edit Data Pegawai</h3>
+                <button type="button" @click="modalEditUser = false" class="text-slate-400 hover:text-red-600 font-bold text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form id="formEditUser" :action="'/users/' + editData.id + '/update'" method="POST" class="space-y-4 text-sm">
+                @csrf
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="font-semibold text-xs block mb-1">Nama Lengkap</label>
+                        <input type="text" name="nama_lengkap" x-model="editData.nama_lengkap" class="w-full border p-2 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="font-semibold text-xs block mb-1">NIK Pegawai</label>
+                        <input type="text" name="nik" x-model="editData.nik" class="w-full border p-2 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="font-semibold text-xs block mb-1">Tempat, Tgl Lahir</label>
+                        <input type="text" name="ttl" x-model="editData.ttl" class="w-full border p-2 rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="font-semibold text-xs block mb-1">Role Akses</label>
+                        <select name="role_id" x-model="editData.role_id" class="w-full border p-2 rounded-lg bg-white" required>
+                            @foreach($roles as $r)
+                                <option value="{{ $r->id }}">{{ $r->nama_role }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-lg border">
+                    <div>
+                        <label class="font-semibold text-xs block mb-1">Username Login</label>
+                        <input type="text" name="username" x-model="editData.username" class="w-full border p-2 rounded-lg bg-white" required>
+                    </div>
+                    <div>
+                        <label class="font-semibold text-xs block mb-1">Password Baru <span class="text-[10px] text-slate-400 font-normal">(Kosongkan jika tetap)</span></label>
+                        <input type="password" name="password" placeholder="••••••••" class="w-full border p-2 rounded-lg bg-white">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" @click="modalEditUser = false" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg font-semibold">Batal</button>
+                    <button type="button" onclick="konfirmasiUpdateUser()" class="bg-amber-500 text-white px-5 py-2 rounded-lg font-bold hover:bg-amber-600 shadow-md flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -195,15 +280,55 @@
     }
 
     function initSelect2UserModal() {
-        $('#selectRoleModal').select2({
-            dropdownParent: $('#formTambahUser'),
-            width: '100%'
+        $('#selectRoleModal').select2({ dropdownParent: $('#formTambahUser'), width: '100%' });
+    }
+
+    // Buka Modal Edit Pegawai dan isi datanya
+    function bukaModalEditUser(data) {
+        let root = Alpine.$data(document.getElementById('alpineUsers'));
+        root.editData = data;
+        root.modalEditUser = true;
+    }
+
+    // Simpan Perubahan Edit Pegawai via POST AJAX
+    function konfirmasiUpdateUser() {
+        const form = document.getElementById('formEditUser');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        Swal.fire({
+            title: 'Simpan Perubahan Pegawai?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#f59e0b',
+            confirmButtonText: 'Ya, Update!',
+            cancelButtonText: 'Batal'
+        }).then((res) => {
+            if (res.isConfirmed) {
+                Swal.fire({ title: 'Memperbarui...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+                $.ajax({
+                    url: $(form).attr('action'),
+                    type: 'POST',
+                    data: new FormData(form),
+                    processData: false,
+                    contentType: false,
+                    success: function(respon) {
+                        window.dispatchEvent(new CustomEvent('tutup-modal-user'));
+                        Swal.fire({ icon: 'success', title: 'Berhasil!', text: respon.pesan, timer: 1400, showConfirmButton: false });
+                        muatDataUser('/users?' + $('#formFilterUser').serialize());
+                    },
+                    error: function() {
+                        Swal.fire('Gagal!', 'Username mungkin sudah digunakan atau data tidak valid.', 'error');
+                    }
+                });
+            }
         });
     }
 
-    // =========================================================================
-    // POST AJAX TAMBAH & HAPUS KENDARAAN (LANGSUNG MASUK LIST MODAL ADMIN)
-    // =========================================================================
+    // Tambah Kendaraan via POST AJAX (Tampilkan Nama Pegawai jika Pribadi)
     function tambahKendaraanAjax(e) {
         e.preventDefault();
         const form = document.getElementById('formTambahKendaraanAjax');
@@ -215,10 +340,15 @@
 
             let m = res.data;
             let badgeColor = m.pemilik === 'Toko' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+            let infoPegawai = (m.pemilik === 'Pribadi' && res.nama_pegawai) 
+                ? `<span class="text-[11px] font-bold text-slate-700 ml-1"><i class="fa-solid fa-user text-blue-500 mr-0.5"></i> ${res.nama_pegawai}</span>` 
+                : '';
+
             let cardHtml = `
                 <div id="item-motor-${m.id}" class="border p-3 rounded-xl flex justify-between items-center bg-slate-50 text-xs">
                     <div>
                         <span class="px-2 py-0.5 rounded font-bold text-[10px] ${badgeColor}">${m.pemilik}</span>
+                        ${infoPegawai}
                         <p class="font-bold text-slate-800 mt-1">${m.merk_tipe}</p>
                         <p class="text-slate-500 font-mono">${m.no_plat}</p>
                     </div>
@@ -228,7 +358,8 @@
                 </div>`;
             $('#listKendaraanAdmin').prepend(cardHtml);
             form.reset();
-        }).fail(() => Swal.fire('Gagal!', 'Pastikan merk/tipe dan nomor plat sudah diisi.', 'error'));
+            Alpine.$data(document.getElementById('alpineUsers')).pemilikMotor = 'Pribadi';
+        }).fail(() => Swal.fire('Gagal!', 'Pastikan seluruh kolom kendaraan dan pemilik sudah diisi.', 'error'));
     }
 
     function hapusKendaraanAjax(id) {
@@ -249,9 +380,6 @@
         });
     }
 
-    // =========================================================================
-    // POST AJAX TAMBAH & HAPUS PEGAWAI
-    // =========================================================================
     function konfirmasiSimpanUser() {
         const form = document.getElementById('formTambahUser');
         if (!form.checkValidity()) {
@@ -265,7 +393,6 @@
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#2563eb',
-            cancelButtonColor: '#64748b',
             confirmButtonText: 'Ya, Simpan!',
             cancelButtonText: 'Periksa Lagi'
         }).then((res) => {
@@ -300,7 +427,6 @@
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#dc2626',
-            cancelButtonColor: '#64748b',
             confirmButtonText: 'Ya, Hapus!',
             cancelButtonText: 'Batal'
         }).then((res) => {

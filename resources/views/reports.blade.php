@@ -38,9 +38,9 @@
                 <a href="/reports/export?{{ http_build_query(request()->all()) }}" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5">
                     <i class="fa-solid fa-file-csv text-sm"></i> Export Excel (CSV)
                 </a>
-                <button onclick="window.print()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                <a href="/reports/print?{{ http_build_query(request()->all()) }}" target="_blank" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5">
                     <i class="fa-solid fa-print text-sm"></i> Cetak / PDF
-                </button>
+                </a>
             </div>
         </div>
 
