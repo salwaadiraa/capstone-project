@@ -1,219 +1,169 @@
 @extends('layout')
-
 @section('content')
-<div class="space-y-6">
+<div class="space-y-6 max-w-7xl mx-auto">
 
-    <!-- Notifikasi Tiket Perlu Tindakan -->
+    {{-- Banner Notifikasi Elegan (Aksen Amber Warm & Royal Blue) --}}
     @if($notifCount > 0)
-    <div class="relative overflow-hidden bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 rounded-2xl p-4 sm:p-5 text-white shadow-lg shadow-amber-500/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div class="absolute -right-10 -bottom-10 w-36 h-36 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+    <div class="relative bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {{-- Aksen Garis Kiri Amber --}}
+        <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500"></div>
 
-        <div class="flex items-center gap-3.5 relative z-10">
-            <div class="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-xl shrink-0">
-                <i class="fa-solid fa-bell animate-bounce"></i>
+        <div class="flex items-center gap-3.5 pl-2">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 text-base border border-amber-200/50">
+                <i class="fa-solid fa-bell"></i>
             </div>
             <div>
-                <h4 class="font-bold text-sm sm:text-base leading-tight">Tindakan Diperlukan</h4>
-                <p class="text-xs sm:text-sm text-amber-100 mt-0.5">
-                    Ada <span class="font-extrabold text-white underline decoration-amber-200">{{ $notifCount }} tiket pengajuan</span> yang menunggu persetujuan Anda.
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
+                        Perlu Tindakan
+                    </span>
+                </div>
+                <p class="text-sm text-slate-700 font-medium mt-1">
+                    Terdapat <span class="font-bold text-slate-900">{{ $notifCount }} tiket pengajuan</span> yang menunggu konfirmasi Anda.
                 </p>
             </div>
         </div>
 
-        <a href="/tickets" class="relative z-10 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white text-amber-800 hover:bg-amber-50 font-bold text-xs sm:text-sm shadow transition-all duration-150 active:scale-95 shrink-0">
-            <span>Periksa Tiket</span>
-            <i class="fa-solid fa-arrow-right text-xs"></i>
+        <a href="/tickets" class="inline-flex items-center justify-center gap-2 bg-[#0f56ba] hover:bg-[#0c4696] active:scale-95 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm shadow-[#0f56ba]/25 hover:shadow-md transition-all self-start sm:self-auto">
+            <span>Buka Menu Tiket</span>
+            <i class="fa-solid fa-arrow-right text-[11px]"></i>
         </a>
     </div>
     @endif
 
-    <!-- Kalkulasi Data Ringkasan -->
-    @php
-        $totalTahunan = is_array($chartData) ? array_sum($chartData) : 0;
-        
-        // Mengambil pengeluaran bulan saat ini (indeks 0 = Januari, 11 = Desember)
-        $currentMonthIndex = (int) date('n') - 1; 
-        $danaBulanIni = ($tahun == date('Y') && isset($chartData[$currentMonthIndex])) ? $chartData[$currentMonthIndex] : 0;
-        
-        // Rata-rata per bulan
-        $rataRataBulanan = $totalTahunan > 0 ? $totalTahunan / 12 : 0;
-    @endphp
-
-    <!-- 4 Kartu Metrik Gabungan (Tahunan, Bulanan, Rata-rata, dan Status Tiket) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <!-- Kartu 1: Total Dana Tahunan -->
-        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Dana ({{ $tahun }})</span>
-                <h3 class="text-lg sm:text-xl font-black text-slate-800 mt-1">
-                    Rp {{ number_format($totalTahunan, 0, ',', '.') }}
-                </h3>
-                <span class="text-[10px] text-blue-600 font-semibold flex items-center gap-1 mt-1">
-                    <i class="fa-solid fa-calendar"></i> Akumulasi setahun
-                </span>
-            </div>
-            <div class="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">
-                <i class="fa-solid fa-vault"></i>
-            </div>
+    {{-- Card Grafik Utama --}}
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        {{-- Aksen Micro Stripe Khas (Biru - Merah - Kuning Emas dari referensi) --}}
+        <div class="flex h-1.5 w-full">
+            <div class="w-1/2 bg-[#0f56ba]"></div>
+            <div class="w-1/4 bg-[#e11d48]"></div>
+            <div class="w-1/4 bg-[#f59e0b]"></div>
         </div>
 
-        <!-- Kartu 2: Total Dana Bulan Ini -->
-        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bulan Ini ({{ date('M') }})</span>
-                <h3 class="text-lg sm:text-xl font-black text-slate-800 mt-1">
-                    Rp {{ number_format($danaBulanIni, 0, ',', '.') }}
-                </h3>
-                <span class="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-                    <i class="fa-solid fa-chart-pie"></i> Realisasi operasional
-                </span>
-            </div>
-            <div class="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0">
-                <i class="fa-solid fa-money-bill-wave"></i>
-            </div>
-        </div>
-
-        <!-- Kartu 3: Rata-Rata Pengeluaran per Bulan -->
-        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rata-Rata / Bulan</span>
-                <h3 class="text-lg sm:text-xl font-black text-slate-800 mt-1">
-                    Rp {{ number_format($rataRataBulanan, 0, ',', '.') }}
-                </h3>
-                <span class="text-[10px] text-amber-600 font-semibold flex items-center gap-1 mt-1">
-                    <i class="fa-solid fa-scale-balanced"></i> Estimasi kebutuhan
-                </span>
-            </div>
-            <div class="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg shrink-0">
-                <i class="fa-solid fa-calculator"></i>
-            </div>
-        </div>
-
-        <!-- Kartu 4: Status Tiket Tertunda -->
-        <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
-            <div>
-                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tiket Tertunda</span>
-                <h3 class="text-lg sm:text-xl font-black {{ $notifCount > 0 ? 'text-rose-600' : 'text-slate-800' }} mt-1">
-                    {{ $notifCount }} <span class="text-xs font-semibold text-slate-400">Berkas</span>
-                </h3>
-                <span class="text-[10px] {{ $notifCount > 0 ? 'text-rose-500' : 'text-slate-400' }} font-semibold flex items-center gap-1 mt-1">
-                    <i class="fa-solid {{ $notifCount > 0 ? 'fa-hourglass-half' : 'fa-check-double' }}"></i>
-                    {{ $notifCount > 0 ? 'Menunggu verifikasi' : 'Semua beres' }}
-                </span>
-            </div>
-            <div class="w-11 h-11 rounded-2xl {{ $notifCount > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-500' }} flex items-center justify-center text-lg shrink-0">
-                <i class="fa-solid fa-receipt"></i>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Grafik Detail Bulanan -->
-    <div class="bg-white p-5 sm:p-7 rounded-2xl shadow-sm border border-slate-100">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-5 mb-5 border-b border-slate-100 gap-4">
-            <div>
-                <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-                    <h2 class="font-extrabold text-base sm:text-lg text-slate-800">
-                        Rincian Pengajuan Dana Bulanan
-                    </h2>
+        <div class="p-5 sm:p-7">
+            {{-- Header & Dropdown Filter --}}
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-5 mb-5 border-b border-slate-100 gap-4">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-11 h-11 rounded-xl bg-[#0f56ba]/10 text-[#0f56ba] flex items-center justify-center shrink-0 text-lg border border-[#0f56ba]/15 shadow-sm">
+                        <i class="fa-solid fa-chart-simple"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-slate-900 text-base sm:text-lg tracking-tight">
+                            Grafik Pengajuan Dana BBM Per Bulan
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Rekapitulasi anggaran periode <span class="font-semibold text-[#0f56ba]">Tahun {{ $tahun }}</span>
+                        </p>
+                    </div>
                 </div>
-                <p class="text-xs text-slate-400 mt-0.5 ml-4.5">
-                    Grafik pengeluaran kas operasional BBM Januari hingga Desember {{ $tahun }}
-                </p>
+
+                {{-- Filter Dropdown Tahun --}}
+                <form action="/dashboard" method="GET" class="flex items-center gap-2 self-start sm:self-auto">
+                    <div class="relative flex items-center">
+                        <span class="absolute left-3 text-slate-400 pointer-events-none text-xs">
+                            <i class="fa-regular fa-calendar-days"></i>
+                        </span>
+                        <select name="tahun" onchange="this.form.submit()" class="pl-8 pr-9 py-2 text-xs font-semibold text-slate-700 bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200 rounded-xl cursor-pointer focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none transition appearance-none shadow-sm">
+                            @foreach($availableYears as $y)
+                                <option value="{{ $y }}" {{ $tahun == $y ? 'selected' : '' }}>Tahun {{ $y }}</option>
+                            @endforeach
+                        </select>
+                        <span class="absolute right-3 text-slate-400 pointer-events-none text-[10px]">
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </span>
+                    </div>
+                </form>
             </div>
 
-            <!-- Filter Tahun -->
-            <form action="/dashboard" method="GET" class="w-full sm:w-auto">
-                <div class="flex items-center gap-2 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 focus-within:ring-2 focus-within:ring-blue-500">
-                    <i class="fa-regular fa-calendar-days text-slate-400 text-xs"></i>
-                    <label for="filterTahun" class="text-xs font-semibold text-slate-600">Tahun:</label>
-                    <select id="filterTahun" 
-                            name="tahun" 
-                            onchange="this.form.submit()" 
-                            class="bg-transparent font-bold text-xs text-blue-600 outline-none cursor-pointer">
-                        @foreach($availableYears as $y)
-                            <option value="{{ $y }}" {{ $tahun == $y ? 'selected' : '' }}>{{ $y }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </form>
-        </div>
-
-        <div class="relative w-full h-[280px] sm:h-[340px]">
-            <canvas id="monthlyChart"></canvas>
+            {{-- Container Canvas Chart --}}
+            <div class="relative w-full h-[290px] sm:h-[370px]">
+                <canvas id="monthlyChart"></canvas>
+            </div>
         </div>
     </div>
 
 </div>
 
-<!-- Inisialisasi Chart.js -->
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const ctx = document.getElementById('monthlyChart').getContext('2d');
-        
-        const barGradient = ctx.createLinearGradient(0, 0, 0, 300);
-        barGradient.addColorStop(0, '#2563eb');
-        barGradient.addColorStop(1, '#93c5fd');
+    const ctx = document.getElementById('monthlyChart').getContext('2d');
 
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
-                datasets: [{
-                    label: 'Pengajuan (Rp)',
-                    data: @json($chartData),
-                    backgroundColor: barGradient,
-                    hoverBackgroundColor: '#1d4ed8',
-                    borderRadius: 8,
-                    borderSkipped: false,
-                    maxBarThickness: 34
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: '#0f172a',
-                        titleFont: { size: 12, weight: 'bold', family: "'Plus Jakarta Sans', sans-serif" },
-                        bodyFont: { size: 13, family: "'Plus Jakarta Sans', sans-serif" },
-                        padding: 12,
-                        cornerRadius: 10,
-                        displayColors: false,
-                        callbacks: {
-                            label: function(context) {
-                                return 'Total: Rp ' + new Intl.NumberFormat('id-ID').format(context.raw);
-                            }
+    // Gradasi Royal Blue khas corporate dari referensi gambar
+    const gradient = ctx.createLinearGradient(0, 0, 0, 360);
+    gradient.addColorStop(0, '#0f56ba');         // Royal blue solid atas
+    gradient.addColorStop(1, 'rgba(15, 86, 186, 0.2)'); // Soft fade bawah
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
+            datasets: [{
+                label: 'Total Pengajuan',
+                data: @json($chartData),
+                backgroundColor: gradient,
+                hoverBackgroundColor: '#0c4696',
+                borderRadius: 8,
+                borderSkipped: false,
+                barPercentage: 0.58,
+                categoryPercentage: 0.8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: '#0f172a',
+                    titleColor: '#94a3b8',
+                    bodyColor: '#f59e0b', // Aksen teks nominal berwarna kuning emas seperti di referensi
+                    padding: 12,
+                    cornerRadius: 10,
+                    titleFont: { size: 11, weight: '500' },
+                    bodyFont: { size: 14, weight: '700' },
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.raw || 0;
+                            return new Intl.NumberFormat('id-ID', {
+                                style: 'currency',
+                                currency: 'IDR',
+                                maximumFractionDigits: 0
+                            }).format(val);
                         }
                     }
-                },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: {
-                            font: { size: 11, family: "'Plus Jakarta Sans', sans-serif", weight: '600' },
-                            color: '#64748b'
-                        }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        display: false
                     },
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: '#f1f5f9', drawBorder: false },
-                        ticks: {
-                            font: { size: 10, family: "'Plus Jakarta Sans', sans-serif" },
-                            color: '#94a3b8',
-                            callback: function(value) {
-                                if (value >= 1000000) return 'Rp ' + (value / 1000000) + ' Jt';
-                                if (value >= 1000) return 'Rp ' + (value / 1000) + ' Rb';
-                                return 'Rp ' + value;
-                            }
+                    ticks: {
+                        font: { size: 11, weight: '600' },
+                        color: '#64748b'
+                    }
+                },
+                y: {
+                    border: {
+                        dash: [4, 4]
+                    },
+                    grid: {
+                        color: '#f1f5f9'
+                    },
+                    ticks: {
+                        font: { size: 11 },
+                        color: '#94a3b8',
+                        callback: function(value) {
+                            if (value >= 1e9) return 'Rp ' + (value / 1e9).toFixed(1) + ' M';
+                            if (value >= 1e6) return 'Rp ' + (value / 1e6).toFixed(0) + ' Jt';
+                            if (value >= 1e3) return 'Rp ' + (value / 1e3).toFixed(0) + ' Rb';
+                            return 'Rp ' + value;
                         }
                     }
                 }
             }
-        });
+        }
     });
 </script>
 @endsection
