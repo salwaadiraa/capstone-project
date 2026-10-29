@@ -153,16 +153,17 @@ class AppController extends Controller
     }
 
     // =========================================================================
-    // 4. SIMPAN TIKET BARU (MENDUKUNG SATUAN 1 HARI & PERIODE MAKS 10 HARI)
+    // 4. SIMPAN TIKET BARU (TANPA KETERANGAN, DIGANTI LABEL PERIODE 1 / 2 / 3)
     // =========================================================================
     public function storeTicket(Request $request) 
     {
-        $mode = $request->mode_pengajuan ?? 'Satuan';
+        $mode = $request->mode_pengajuan ?? 'Periode';
         $userId = Auth::id();
         $itemsInput = $request->items ?? [];
 
-        if (empty($itemsInput) || count($itemsInput) > 10) {
-            return response()->json(['status' => 'gagal', 'pesan' => 'Jumlah hari pengajuan harus antara 1 s/d 10 hari!'], 422);
+        // Maksimal 11 hari (karena Periode 3: tgl 21 s/d 31 = 11 hari)
+        if (empty($itemsInput) || count($itemsInput) > 11) {
+            return response()->json(['status' => 'gagal', 'pesan' => 'Jumlah hari pengajuan harus antara 1 s/d 11 hari!'], 422);
         }
 
         $savedItems = [];
@@ -173,7 +174,7 @@ class AppController extends Controller
 
         foreach ($itemsInput as $idx => $row) {
             $tgl = $row['tgl_reimburse'] ?? '';
-            $statusHari = $row['status_hari'] ?? 'Kerja'; // 'Kerja' atau 'Libur'
+            $statusHari = $row['status_hari'] ?? 'Kerja';
 
             if ($statusHari === 'Libur') {
                 $savedItems[] = [
@@ -244,22 +245,43 @@ class AppController extends Controller
         $tglAwal  = $savedItems[0]['tgl_reimburse'];
         $tglAkhir = end($savedItems)['tgl_reimburse'];
 
+        // Bentuk Label Periode Otomatis (menggantikan keterangan_req)
+        $namaBulan = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+
+        if ($mode === 'Periode') {
+            $pKe   = $request->periode_ke ?? 1;
+            $bln   = (int) ($request->bulan_periode ?? date('n', strtotime($tglAwal)));
+            $thn   = $request->tahun_periode ?? date('Y', strtotime($tglAwal));
+            $dAwal = substr($tglAwal, 8, 2);
+            $dAkhir = substr($tglAkhir, 8, 2);
+            $labelPeriode = "Periode {$pKe} ({$dAwal} - {$dAkhir} " . ($namaBulan[$bln] ?? '') . " {$thn})";
+        } else {
+            $labelPeriode = "Harian (" . date('d-m-Y', strtotime($tglAwal)) . ")";
+        }
+
         $ticket = Ticket::create([
             'user_id'        => $userId,
             'kendaraan_id'   => $request->kendaraan_id,
             'ap_method_id'   => $request->ap_method_id,
-            'tipe_pengajuan' => $mode === 'Periode' ? 'Reimburse BBM (Periode)' : 'Reimburse BBM',
+            'tipe_pengajuan' => $mode === 'Periode' ? 'Reimburse BBM (Periode)' : 'Reimburse BBM (Satuan)',
             'tgl_reimburse'  => $tglAwal,
             'tgl_akhir'      => $tglAkhir,
             'nominal_req'    => $totalNominal,
-            'keterangan_req' => $request->keterangan_req,
+            'keterangan_req' => $labelPeriode, // Menyimpan info Periode (tanpa keterangan manual)
             'img_req'        => $allImgPaths,
             'json_req'       => [
-                'mode'         => $mode,
-                'km_tempuh'    => $totalKm,
-                'jenis_bbm'    => 'Pertalite',
-                'tarif_per_km' => 500,
-                'items'        => $savedItems
+                'mode'          => $mode,
+                'periode_ke'    => $request->periode_ke ?? null,
+                'bulan_periode' => $request->bulan_periode ?? null,
+                'tahun_periode' => $request->tahun_periode ?? null,
+                'km_tempuh'     => $totalKm,
+                'jenis_bbm'     => 'Pertalite',
+                'tarif_per_km'  => 500,
+                'items'         => $savedItems
             ],
             'status'         => 'Menunggu Admin'
         ]);
@@ -269,14 +291,14 @@ class AppController extends Controller
             'user_id'     => $userId,
             'role'        => Auth::user()->role->nama_role,
             'status_app'  => 'Menunggu Admin',
-            'catatan_app' => "Mengajukan {$mode} (Total {$totalKm} KM) sebesar Rp " . number_format($totalNominal, 0, ',', '.')
+            'catatan_app' => "Mengajukan {$labelPeriode} (Total {$totalKm} KM) sebesar Rp " . number_format($totalNominal, 0, ',', '.')
         ]);
 
         return response()->json(['status' => 'sukses', 'pesan' => 'Pengajuan Reimburse BBM berhasil dikirim ke Admin!']);
     }
 
     // =========================================================================
-    // 5. REVISI TIKET OLEH PEGAWAI (MENDUKUNG SATUAN & PERIODE)
+    // 5. REVISI TIKET OLEH PEGAWAI (TANPA INPUT KETERANGAN)
     // =========================================================================
     public function reviseTicket(Request $request, Ticket $ticket) 
     {
@@ -351,19 +373,16 @@ class AppController extends Controller
             return response()->json(['status' => 'gagal', 'pesan' => 'Minimal harus ada 1 hari Kerja!'], 422);
         }
 
+        $jsonBaru = $ticket->json_req;
+        $jsonBaru['km_tempuh'] = $totalKm;
+        $jsonBaru['items'] = $savedItems;
+
         $ticket->update([
-            'nominal_req'    => $totalNominal,
-            'nominal_app'    => null,
-            'keterangan_req' => $request->keterangan_req ?? $ticket->keterangan_req,
-            'img_req'        => $allImgPaths,
-            'json_req'       => [
-                'mode'         => $ticket->json_req['mode'] ?? 'Satuan',
-                'km_tempuh'    => $totalKm,
-                'jenis_bbm'    => 'Pertalite',
-                'tarif_per_km' => 500,
-                'items'        => $savedItems
-            ],
-            'status'         => 'Menunggu Admin'
+            'nominal_req' => $totalNominal,
+            'nominal_app' => null,
+            'img_req'     => $allImgPaths,
+            'json_req'    => $jsonBaru,
+            'status'      => 'Menunggu Admin'
         ]);
 
         TicketApproval::create([

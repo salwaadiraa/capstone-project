@@ -7,36 +7,44 @@
         modalPeriode: false, 
         kmSatuan: '', 
         filesSatuan: [], 
-        tglMulai: '{{ date('Y-m-d') }}',
-        tglSelesai: '{{ date('Y-m-d') }}',
+        tahunPeriode: '{{ date('Y') }}',
+        bulanPeriode: '{{ date('n') }}',
+        periodeKe: '{{ date('j') <= 10 ? 1 : (date('j') <= 20 ? 2 : 3) }}',
+        tglMulai: '',
+        tglSelesai: '',
         rowsPeriode: [],
         sliderOpen: false, 
         sliderImgs: [], 
         slideIdx: 0,
         generateRows() {
-            if (!this.tglMulai || !this.tglSelesai) return;
-            let start = new Date(this.tglMulai);
-            let end = new Date(this.tglSelesai);
-            let diff = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            let y = parseInt(this.tahunPeriode);
+            let m = parseInt(this.bulanPeriode);
+            let p = parseInt(this.periodeKe);
+            if (!y || !m || !p) return;
 
-            if (diff <= 0) {
-                Swal.fire('Perhatian', 'Tanggal akhir harus sama atau setelah tanggal awal!', 'warning');
-                this.tglSelesai = this.tglMulai;
-                diff = 1;
+            let startDay = 1;
+            let endDay = 10;
+
+            if (p === 1) {
+                startDay = 1;
+                endDay = 10;
+            } else if (p === 2) {
+                startDay = 11;
+                endDay = 20;
+            } else if (p === 3) {
+                startDay = 21;
+                // Hitung otomatis tanggal terakhir di bulan & tahun tersebut (28, 29, 30, atau 31)
+                endDay = new Date(y, m, 0).getDate();
             }
-            if (diff > 10) {
-                Swal.fire('Maksimal 10 Hari', 'Pengajuan periode maksimal 10 hari sekaligus! Tanggal akhir direset ke tanggal mulai.', 'warning');
-                this.tglSelesai = this.tglMulai;
-                start = new Date(this.tglMulai);
-                diff = 1;
-            }
+
+            let mm = String(m).padStart(2, '0');
+            this.tglMulai = `${y}-${mm}-${String(startDay).padStart(2, '0')}`;
+            this.tglSelesai = `${y}-${mm}-${String(endDay).padStart(2, '0')}`;
 
             let temp = [];
-            for (let i = 0; i < diff; i++) {
-                let d = new Date(start);
-                d.setDate(start.getDate() + i);
-                let iso = d.toISOString().split('T')[0];
-                temp.push({ tgl: iso, status_hari: 'Kerja', km: '', files: [] });
+            for (let d = startDay; d <= endDay; d++) {
+                let dd = String(d).padStart(2, '0');
+                temp.push({ tgl: `${y}-${mm}-${dd}`, status_hari: 'Kerja', km: '', files: [] });
             }
             this.rowsPeriode = temp;
         },
@@ -63,7 +71,7 @@
                 <label class="font-semibold text-xs text-slate-600 block mb-1">Status</label>
                 <select name="status" id="filterStatus" class="select2-filter w-full border rounded p-2">
                     <option value="">Semua Status</option>
-                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak'] as $st)
+                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak', 'Dibatalkan'] as $st)
                         <option value="{{ $st }}" {{ request('status') == $st ? 'selected' : '' }}>{{ $st }}</option>
                     @endforeach
                 </select>
@@ -78,13 +86,13 @@
                 </button>
 
                 @if(auth()->user()->role->nama_role === 'Pegawai')
-                <button style="display:none" type="button" @click="modalSatuan = true" 
+                <button type="button" @click="modalSatuan = true"  style="display:none"
                         class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold text-xs h-[38px] flex items-center gap-1 shadow-sm">
                     <i class="fa-solid fa-plus"></i> Satuan
                 </button>
                 <button type="button" @click="modalPeriode = true; generateRows()" 
                         class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg font-bold text-xs h-[38px] flex items-center gap-1 shadow-sm">
-                    <i class="fa-solid fa-calendar-week"></i> Periode (10 Hari)
+                    <i class="fa-solid fa-calendar-week"></i> Pengajuan
                 </button>
                 @endif
             </div>
@@ -98,7 +106,7 @@
 
     @if(auth()->user()->role->nama_role === 'Pegawai')
     <!-- ======================================================================= -->
-    <!-- MODAL A: TAMBAH PENGAJUAN SATUAN (1 HARI)                               -->
+    <!-- MODAL A: TAMBAH PENGAJUAN SATUAN (1 HARI - TANPA KETERANGAN)            -->
     <!-- ======================================================================= -->
     <div x-show="modalSatuan" x-transition.opacity @click.self="modalSatuan = false"
          class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" style="display: none;">
@@ -153,11 +161,6 @@
                     </div>
                 </div>
 
-                <div>
-                    <label class="font-semibold text-xs block mb-1">Keterangan Pengajuan</label>
-                    <textarea name="keterangan_req" rows="2" class="w-full border p-2 rounded-lg" placeholder="Jelaskan rincian keperluan perjalanan..." required></textarea>
-                </div>
-
                 <!-- DRAG & DROP MULTI UPLOAD GAMBAR SATUAN -->
                 <div>
                     <label class="font-semibold text-xs block mb-1">Upload Bukti Foto (Bisa pilih lebih dari 1 gambar)</label>
@@ -185,13 +188,13 @@
     </div>
 
     <!-- ======================================================================= -->
-    <!-- MODAL B: TAMBAH PENGAJUAN PERIODE (MAKS 10 HARI + RADIO KERJA / LIBUR)  -->
+    <!-- MODAL B: TAMBAH PENGAJUAN PERIODE (PILIH TAHUN, BULAN, & PERIODE 1/2/3) -->
     <!-- ======================================================================= -->
     <div x-show="modalPeriode" x-transition.opacity @click.self="modalPeriode = false"
          class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto" style="display: none;">
         <div class="bg-white p-6 rounded-2xl max-w-5xl w-full shadow-2xl border max-h-[92vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b pb-3 mb-4">
-                <h3 class="font-bold text-lg text-indigo-700"><i class="fa-solid fa-calendar-week mr-1.5"></i> Pengajuan Reimburse BBM Periode (Maks 10 Hari)</h3>
+                <h3 class="font-bold text-lg text-indigo-700"><i class="fa-solid fa-calendar-week mr-1.5"></i> Pengajuan Reimburse BBM per Periode</h3>
                 <button type="button" @click="modalPeriode = false" class="text-slate-400 hover:text-red-600"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
 
@@ -199,44 +202,73 @@
                 @csrf
                 <input type="hidden" name="mode_pengajuan" value="Periode">
 
-                <!-- Header Pilihan Periode, Kendaraan & Rekening -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 bg-indigo-50/60 p-3.5 rounded-xl border border-indigo-200">
-                    <div>
-                        <label class="font-bold text-xs text-indigo-900 block mb-1">Dari Tanggal</label>
-                        <input type="date" x-model="tglMulai" @change="generateRows()" class="w-full border p-2 rounded bg-white" required>
+                <!-- PILIHAN TAHUN, BULAN, PERIODE (1 / 2 / 3), KENDARAAN, & REKENING -->
+                <div class="bg-indigo-50/60 p-4 rounded-xl border border-indigo-200 space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div>
+                            <label class="font-bold text-xs text-indigo-900 block mb-1">1. Pilih Tahun</label>
+                            <select name="tahun_periode" x-model="tahunPeriode" @change="generateRows()" class="w-full border p-2 rounded-lg bg-white font-semibold" required>
+                                @for($y = date('Y') - 1; $y <= date('Y') + 1; $y++)
+                                    <option value="{{ $y }}">{{ $y }}</option>
+                                @endfor
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-bold text-xs text-indigo-900 block mb-1">2. Pilih Bulan</label>
+                            @php
+                                $listBulan = [
+                                    1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+                                    5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+                                    9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+                                ];
+                            @endphp
+                            <select name="bulan_periode" x-model="bulanPeriode" @change="generateRows()" class="w-full border p-2 rounded-lg bg-white font-semibold" required>
+                                @foreach($listBulan as $num => $namaBln)
+                                    <option value="{{ $num }}">{{ $namaBln }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-bold text-xs text-indigo-900 block mb-1">3. Pilih Periode</label>
+                            <select name="periode_ke" x-model="periodeKe" @change="generateRows()" class="w-full border p-2 rounded-lg bg-white font-bold text-indigo-700" required>
+                                <option value="1">Periode 1 (Tgl 01 - 10)</option>
+                                <option value="2">Periode 2 (Tgl 11 - 20)</option>
+                                <option value="3">Periode 3 (Tgl 21 - Akhir Bulan)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-bold text-xs text-indigo-900 block mb-1">Rentang Tanggal (Otomatis)</label>
+                            <div class="w-full border p-2 rounded-lg bg-slate-100 font-mono text-xs font-bold text-slate-700 flex items-center justify-center h-[38px]">
+                                <i class="fa-regular fa-calendar-check text-indigo-600 mr-1.5"></i>
+                                <span x-text="tglMulai + ' s/d ' + tglSelesai"></span>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="font-bold text-xs text-indigo-900 block mb-1">Sampai Tanggal (Maks 10 Hari)</label>
-                        <input type="date" x-model="tglSelesai" @change="generateRows()" class="w-full border p-2 rounded bg-white" required>
-                    </div>
-                    <div>
-                        <label class="font-bold text-xs text-indigo-900 block mb-1">Kendaraan</label>
-                        <select name="kendaraan_id" class="w-full border p-2 rounded bg-white" required>
-                            @foreach($kendaraans as $k)
-                                <option value="{{ $k->id }}">
-                                    [{{ $k->pemilik }}{{ $k->pemilik === 'Pribadi' && $k->user ? ' - ' . ($k->user->pegawai->nama_lengkap ?? $k->user->name) : '' }}] 
-                                    {{ $k->merk_tipe }} ({{ $k->no_plat }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="font-bold text-xs text-indigo-900 block mb-1">Rekening Penerima</label>
-                        <select name="ap_method_id" class="w-full border p-2 rounded bg-white" required>
-                            @foreach($apMethods as $m)
-                                <option value="{{ $m->id }}">{{ $m->nama_bank }} - {{ $m->no_rekening }}</option>
-                            @endforeach
-                        </select>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-indigo-200/60">
+                        <div>
+                            <label class="font-bold text-xs text-indigo-900 block mb-1">Pilih Kendaraan (Pribadi / Toko)</label>
+                            <select name="kendaraan_id" class="w-full border p-2 rounded-lg bg-white" required>
+                                @foreach($kendaraans as $k)
+                                    <option value="{{ $k->id }}">
+                                        [{{ $k->pemilik }}{{ $k->pemilik === 'Pribadi' && $k->user ? ' - ' . ($k->user->pegawai->nama_lengkap ?? $k->user->name) : '' }}] 
+                                        {{ $k->merk_tipe }} ({{ $k->no_plat }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-bold text-xs text-indigo-900 block mb-1">Pilih Rekening Pencairan</label>
+                            <select name="ap_method_id" class="w-full border p-2 rounded-lg bg-white" required>
+                                @foreach($apMethods as $m)
+                                    <option value="{{ $m->id }}">{{ $m->nama_bank }} - {{ $m->no_rekening }} (a.n {{ $m->atas_nama }})</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Cukup 1 Keterangan Umum -->
-                <div>
-                    <label class="font-semibold text-xs block mb-1">Keterangan Pengajuan (Umum)</label>
-                    <textarea name="keterangan_req" rows="2" placeholder="Contoh: Reimburse BBM Operasional Periode Minggu Ke-1..." class="w-full border p-2 rounded-lg" required></textarea>
-                </div>
-
-                <!-- Tabel Multi-Row (Maks 10 Hari dengan Radio Kerja / Libur & Drag-Drop Multi-Gambar) -->
+                <!-- Tabel Multi-Row Sesuai Periode -->
                 <div class="overflow-x-auto border rounded-xl">
                     <table class="w-full text-left border-collapse text-xs">
                         <thead>
@@ -257,7 +289,6 @@
                                         <input type="date" :name="'items['+index+'][tgl_reimburse]'" x-model="row.tgl" readonly
                                                class="w-full border p-1.5 rounded bg-slate-100 font-bold text-slate-700 cursor-not-allowed">
                                     </td>
-                                    <!-- Radio Button Kerja / Libur -->
                                     <td class="p-2">
                                         <div class="flex items-center gap-3 font-semibold">
                                             <label class="inline-flex items-center gap-1 cursor-pointer text-emerald-700">
@@ -271,7 +302,6 @@
                                             </label>
                                         </div>
                                     </td>
-                                    <!-- Input KM (Disabled jika Libur) -->
                                     <td class="p-2">
                                         <input type="number" :name="'items['+index+'][km_tempuh]'" x-model="row.km" min="1" max="80"
                                                :disabled="row.status_hari === 'Libur'"
@@ -283,7 +313,6 @@
                                     </td>
                                     <td class="p-2 font-extrabold" :class="row.status_hari === 'Libur' ? 'text-slate-400' : 'text-blue-700'"
                                         x-text="row.status_hari === 'Libur' ? 'Rp 0 (Libur)' : 'Rp ' + ((row.km ? row.km * 500 : 0).toLocaleString('id-ID'))"></td>
-                                    <!-- Drag & Drop Multi-Gambar per Baris (Disabled jika Libur) -->
                                     <td class="p-2">
                                         <div class="border border-dashed rounded p-1.5 text-center relative transition"
                                              :class="row.status_hari === 'Libur' ? 'border-slate-300 bg-slate-200 cursor-not-allowed' : 'border-blue-400 bg-blue-50/40 hover:bg-blue-50 cursor-pointer'">
@@ -305,7 +334,7 @@
                         </tbody>
                         <tfoot>
                             <tr class="bg-indigo-50 font-extrabold text-sm text-indigo-900">
-                                <td colspan="3" class="p-3 text-right">TOTAL KESELURUHAN:</td>
+                                <td colspan="3" class="p-3 text-right">TOTAL KESELURUHAN (<span x-text="rowsPeriode.length"></span> HARI):</td>
                                 <td class="p-3" x-text="totalKmPeriode() + ' KM'"></td>
                                 <td class="p-3 text-blue-700" x-text="'Rp ' + totalNominalPeriode().toLocaleString('id-ID')"></td>
                                 <td class="p-3 text-xs font-normal text-slate-500">*BBM Fix Pertalite (Maks 80 KM/Hari Kerja)</td>
@@ -395,7 +424,7 @@
 
         Swal.fire({
             title: 'Kirim Pengajuan Reimburse BBM?',
-            text: 'Pastikan tanggal, status Kerja/Libur, jarak KM, kendaraan, dan rekening penerima sudah sesuai.',
+            text: 'Pastikan periode, status Kerja/Libur, jarak KM, kendaraan, dan rekening penerima sudah sesuai.',
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#2563eb',

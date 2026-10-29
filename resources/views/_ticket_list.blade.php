@@ -36,7 +36,9 @@
                 </span>
 
                 <h4 class="font-bold text-base mt-1">#{{ $t->id }} - {{ $t->user->pegawai->nama_lengkap ?? $t->user->name }}</h4>
-                <p class="text-xs text-slate-600 mt-0.5"><i class="fa-regular fa-comment-dots text-slate-400 mr-1"></i> {{ $t->keterangan_req }}</p>
+                <p class="text-xs font-semibold text-indigo-700 mt-0.5">
+                    <i class="fa-regular fa-calendar-days mr-1"></i> {{ $t->keterangan_req }}
+                </p>
                 
                 <div class="text-xs text-slate-600 mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
                     <span><i class="fa-solid fa-gauge text-blue-500 mr-1"></i> Total Jarak: <b>{{ $t->json_req['km_tempuh'] ?? 0 }} KM</b> (Pertalite @ Rp 500/KM)</span>
@@ -190,10 +192,6 @@
         <form action="/tickets/{{ $t->id }}/revise" method="POST" enctype="multipart/form-data" class="mt-3 pt-3 border-t bg-amber-50 p-3 rounded space-y-2 text-xs">
             @csrf
             <p class="font-bold text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Perbaikan Pengajuan (Diminta Revisi):</p>
-            <div>
-                <label class="font-bold text-slate-700 block mb-1">Keterangan Pengajuan (Umum):</label>
-                <input type="text" name="keterangan_req" value="{{ $t->keterangan_req }}" class="w-full border p-1.5 rounded bg-white" required>
-            </div>
             @foreach($items as $idx => $it)
             <div x-data="{ stRev: '{{ $it['status_hari'] ?? 'Kerja' }}', kmRev: '{{ $it['km_tempuh'] ?? 0 }}' }" 
                  class="grid grid-cols-1 md:grid-cols-4 gap-2 bg-white p-2 rounded border items-center">

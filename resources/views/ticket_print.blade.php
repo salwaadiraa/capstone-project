@@ -65,10 +65,6 @@
                     <span class="w-32 text-slate-500 font-semibold">Periode BBM</span>
                     <span class="font-bold text-blue-700">: {{ $tglAwal }} @if($tglAkhir && $tglAkhir !== $tglAwal) s/d {{ $tglAkhir }} @endif ({{ count($items) ?: 1 }} Hari)</span>
                 </div>
-                <div class="flex">
-                    <span class="w-32 text-slate-500 font-semibold">Keterangan</span>
-                    <span class="font-medium text-slate-700">: {{ $ticket->keterangan_req }}</span>
-                </div>
             </div>
 
             <div class="space-y-2">
