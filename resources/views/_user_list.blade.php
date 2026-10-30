@@ -105,22 +105,40 @@
                         @endif
                     </td>
 
-                    {{-- Kolom 6: Aksi Hapus --}}
+                    {{-- Kolom 6: Aksi Edit & Hapus --}}
                     <td class="py-3.5 px-4 text-right">
-                        @if($u->id !== auth()->id())
-                        <form action="/users/{{ $u->id }}/delete" method="POST" class="inline-block">
-                            @csrf
+                        <div class="flex items-center justify-end gap-1.5">
+                            <!-- Tombol Edit Pegawai -->
                             <button type="button" 
-                                    onclick="konfirmasiHapusPegawai(this, '{{ $u->pegawai->nama_lengkap ?? $u->name }}')" 
-                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white border border-rose-200/60 font-semibold text-xs transition duration-150 active:scale-95 shadow-2xs"
-                                    title="Hapus Pegawai">
-                                <i class="fa-regular fa-trash-can text-xs"></i>
-                                <span>Hapus</span>
+                                    onclick="bukaModalEditUser({
+                                        id: {{ $u->id }},
+                                        nama_lengkap: '{{ addslashes($u->pegawai->nama_lengkap ?? $u->name) }}',
+                                        nik: '{{ addslashes($u->pegawai->nik ?? '') }}',
+                                        ttl: '{{ addslashes($u->pegawai->ttl ?? '') }}',
+                                        username: '{{ addslashes($u->username) }}',
+                                        role_id: {{ $u->role_id }}
+                                    })"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-amber-700 bg-amber-50 hover:bg-amber-600 hover:text-white border border-amber-200/60 font-semibold text-xs transition duration-150 active:scale-95 shadow-2xs"
+                                    title="Edit Pegawai">
+                                <i class="fa-solid fa-pen-to-square text-xs"></i>
+                                <span>Edit</span>
                             </button>
-                        </form>
-                        @else
-                        <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">Akun Anda</span>
-                        @endif
+
+                            @if($u->id !== auth()->id())
+                            <form action="/users/{{ $u->id }}/delete" method="POST" class="inline-block">
+                                @csrf
+                                <button type="button" 
+                                        onclick="konfirmasiHapusPegawai(this, '{{ addslashes($u->pegawai->nama_lengkap ?? $u->name) }}')" 
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-rose-600 bg-rose-50 hover:bg-rose-600 hover:text-white border border-rose-200/60 font-semibold text-xs transition duration-150 active:scale-95 shadow-2xs"
+                                        title="Hapus Pegawai">
+                                    <i class="fa-regular fa-trash-can text-xs"></i>
+                                    <span>Hapus</span>
+                                </button>
+                            </form>
+                            @else
+                            <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">Akun Anda</span>
+                            @endif
+                        </div>
                     </td>
                 </tr>
                 @empty

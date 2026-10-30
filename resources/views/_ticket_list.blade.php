@@ -35,6 +35,7 @@
     @php
         $items = $t->json_req['items'] ?? [];
         $isPeriode = count($items) > 1;
+        $role = auth()->user()->role->nama_role;
 
         // Styling badge status
         $statusColors = [
@@ -45,6 +46,7 @@
             'Telah Dibayar'    => 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
             'Selesai'          => 'bg-teal-50 text-teal-700 border-teal-200/80',
             'Ditolak'          => 'bg-rose-50 text-rose-700 border-rose-200/80',
+            'Dibatalkan'       => 'bg-red-50 text-red-700 border-red-200/80',
         ];
         $stClass = $statusColors[$t->status] ?? 'bg-slate-100 text-slate-700 border-slate-200';
     @endphp
@@ -55,7 +57,7 @@
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             
             {{-- Sisi Kiri: Informasi Utama Tiket --}}
-            <div class="space-y-2 flex-1">
+            <div class="space-y-2 flex-1 min-w-0">
                 
                 {{-- Baris Badge Tipe, Status, & Tanggal --}}
                 <div class="flex flex-wrap items-center gap-2">
@@ -73,9 +75,9 @@
 
                     {{-- Tanggal Pelaksanaan --}}
                     <span class="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium ml-1">
-                        <i class="fa-regular fa-calendar text-slate-400 text-[11px]"></i>
+                        <i class="fa-regular fa-calendar-check text-[#0f56ba] text-[11px]"></i>
                         <span>
-                            {{ $t->tgl_reimburse ?? $t->created_at->format('Y-m-d') }}
+                            Periode BBM: {{ $t->tgl_reimburse ?? $t->created_at->format('Y-m-d') }}
                             @if($isPeriode && $t->tgl_akhir) 
                                 s/d {{ $t->tgl_akhir }} <b class="text-slate-700 font-semibold">({{ count($items) }} Hari)</b>
                             @endif
@@ -91,8 +93,8 @@
                         </span>
                         <span>{{ $t->user->pegawai->nama_lengkap ?? $t->user->name }}</span>
                     </h4>
-                    <p class="text-xs text-slate-600 mt-1 flex items-start gap-1.5 leading-relaxed">
-                        <i class="fa-regular fa-comment-dots text-slate-400 text-xs mt-0.5 shrink-0"></i>
+                    <p class="text-xs font-semibold text-indigo-700 mt-1 flex items-start gap-1.5 leading-relaxed">
+                        <i class="fa-regular fa-calendar-days text-indigo-500 text-xs mt-0.5 shrink-0"></i>
                         <span>{{ $t->keterangan_req }}</span>
                     </p>
                 </div>
@@ -102,14 +104,17 @@
                     {{-- Jarak KM --}}
                     <span class="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-slate-700">
                         <i class="fa-solid fa-gauge text-[#0f56ba] text-xs"></i>
-                        <span>Jarak: <b class="text-slate-900 font-mono">{{ $t->json_req['km_tempuh'] ?? 0 }} KM</b></span>
+                        <span>Jarak: <b class="text-slate-900 font-mono">{{ $t->json_req['km_tempuh'] ?? 0 }} KM</b> (Pertalite @ Rp 500/KM)</span>
                     </span>
 
                     {{-- Info Kendaraan --}}
                     @if($t->kendaraan)
                     <span class="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-lg text-slate-700">
                         <i class="fa-solid fa-motorcycle text-amber-500 text-xs"></i>
-                        <span><b class="text-slate-800">[{{ $t->kendaraan->pemilik }}]</b> {{ $t->kendaraan->merk_tipe }} <span class="font-mono font-semibold">({{ $t->kendaraan->no_plat }})</span></span>
+                        <span>
+                            <b class="text-slate-800">[{{ $t->kendaraan->pemilik }}{{ $t->kendaraan->pemilik === 'Pribadi' && $t->kendaraan->user ? ' - ' . ($t->kendaraan->user->pegawai->nama_lengkap ?? $t->kendaraan->user->name) : '' }}]</b> 
+                            {{ $t->kendaraan->merk_tipe }} <span class="font-mono font-semibold">({{ $t->kendaraan->no_plat }})</span>
+                        </span>
                     </span>
                     @endif
 
@@ -125,9 +130,9 @@
             </div>
 
             {{-- Sisi Kanan: Nominal & Tombol Interaktif --}}
-            <div class="flex flex-col lg:items-end justify-between border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100">
+            <div class="flex flex-col lg:items-end justify-between border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 shrink-0">
                 <div class="lg:text-right">
-                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Pengajuan</p>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Reimburse</p>
                     <p class="font-extrabold font-mono text-lg text-slate-900 leading-tight">
                         Rp {{ number_format($t->nominal_req, 0, ',', '.') }}
                     </p>
@@ -139,12 +144,12 @@
                 </div>
 
                 {{-- Action Pill Buttons --}}
-                <div class="flex items-center gap-1.5 mt-3 self-start lg:self-auto">
+                <div class="flex flex-wrap items-center gap-1.5 mt-3 self-start lg:self-auto">
                     @if(!empty($items))
                     <button type="button" @click="rincian = !rincian" 
-                            class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition">
-                        <i class="fa-solid fa-list-check text-slate-500 text-[11px]"></i>
-                        <span>Rincian ({{ count($items) }})</span>
+                            class="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-list-check text-[11px]"></i>
+                        <span>Rincian ({{ count($items) }} Hari)</span>
                         <i class="fa-solid fa-chevron-down text-[9px] transition-transform" :class="rincian ? 'rotate-180' : ''"></i>
                     </button>
                     @endif
@@ -152,42 +157,87 @@
                     @php
                         $urls = collect($t->img_req ?? [])->map(fn($p) => asset('storage/'.$p));
                     @endphp
+                    @if(count($t->img_req ?? []) > 0)
                     <button type="button" @click="sliderImgs = {{ $urls->toJson() }}; slideIdx = 0; sliderOpen = true"
                             class="px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-[#0f56ba] text-[#0f56ba] hover:text-white font-semibold text-xs flex items-center gap-1.5 transition">
                         <i class="fa-regular fa-image text-[11px]"></i>
                         <span>Bukti ({{ count($t->img_req ?? []) }})</span>
                     </button>
+                    @endif
 
+                    {{-- Tombol Print Tiket --}}
+                    <a href="/tickets/{{ $t->id }}/print" target="_blank" 
+                       class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-print text-slate-500 text-[11px]"></i>
+                        <span>Print</span>
+                    </a>
+
+                    {{-- Tombol Histori --}}
                     <button type="button" @click="expand = !expand" 
                             class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition">
                         <i class="fa-solid fa-clock-rotate-left text-slate-500 text-[11px]"></i>
                         <span>Histori</span>
                     </button>
+
+                    {{-- Tombol Batalkan (Khusus Pegawai saat Menunggu Admin) --}}
+                    @if($role === 'Pegawai' && $t->status === 'Menunggu Admin')
+                    <form action="/tickets/{{ $t->id }}/cancel" method="POST" class="inline">
+                        @csrf
+                        <button type="button" onclick="konfirmasiAksi(this, 'Dibatalkan', 'Batalkan Pengajuan #{{ $t->id }}?', 'Pengajuan ini akan dibatalkan dan kuota KM tanggal terkait akan dikembalikan.', '#e11d48')"
+                                class="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200/60 font-semibold text-xs flex items-center gap-1.5 transition shadow-2xs">
+                            <i class="fa-solid fa-ban text-xs"></i>
+                            <span>Batalkan</span>
+                        </button>
+                    </form>
+                    @endif
                 </div>
             </div>
 
         </div>
 
-        <!-- 1. TABEL RINCIAN TANGGAL MULTI-ROW -->
+        <!-- 1. TABEL RINCIAN TANGGAL MULTI-ROW DENGAN BUKTI HARIAN & STATUS HARI -->
         @if(!empty($items))
         <div x-show="rincian" x-transition.opacity.duration.200ms class="mt-4 pt-4 border-t border-slate-100" style="display: none;">
-            <div class="overflow-x-auto rounded-xl border border-slate-200/80 bg-slate-50/50">
+            <div class="overflow-x-auto rounded-2xl border border-slate-200/80 bg-slate-50/50">
                 <table class="w-full text-left border-collapse text-xs">
                     <thead>
                         <tr class="bg-slate-100/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                             <th class="p-3">Tanggal BBM</th>
+                            <th class="p-3">Status Hari</th>
                             <th class="p-3">Jarak Tempuh</th>
-                            <th class="p-3">Tarif (Rp 500/KM)</th>
-                            <th class="p-3">Keterangan / Rute Harian</th>
+                            <th class="p-3">Nominal (Rp 500/KM)</th>
+                            <th class="p-3 text-center">Bukti Harian</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 bg-white">
                         @foreach($items as $it)
-                        <tr class="hover:bg-slate-50/80 transition-colors">
+                        @php 
+                            $stHari = $it['status_hari'] ?? 'Kerja'; 
+                            $dayImgs = collect($it['imgs'] ?? [])->map(fn($p) => asset('storage/'.$p));
+                        @endphp
+                        <tr class="transition-colors {{ $stHari === 'Libur' ? 'bg-slate-100/70 text-slate-400' : 'hover:bg-slate-50/80' }}">
                             <td class="p-3 font-semibold text-slate-800">{{ $it['tgl_reimburse'] ?? '-' }}</td>
+                            <td class="p-3">
+                                <span class="px-2 py-0.5 rounded-md font-bold text-[10px] {{ $stHari === 'Libur' ? 'bg-rose-50 text-rose-700 border border-rose-200/60' : 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' }}">
+                                    {{ $stHari }}
+                                </span>
+                            </td>
                             <td class="p-3 font-mono font-bold text-slate-700">{{ $it['km_tempuh'] ?? 0 }} KM</td>
-                            <td class="p-3 font-mono font-bold text-[#0f56ba]">Rp {{ number_format($it['nominal'] ?? 0, 0, ',', '.') }}</td>
-                            <td class="p-3 text-slate-600">{{ $it['keterangan'] ?? '-' }}</td>
+                            <td class="p-3 font-mono font-bold {{ $stHari === 'Libur' ? 'text-slate-400' : 'text-[#0f56ba]' }}">
+                                Rp {{ number_format($it['nominal'] ?? 0, 0, ',', '.') }}
+                            </td>
+                            <td class="p-3 text-center">
+                                @if($stHari === 'Libur' || $dayImgs->isEmpty())
+                                    <span class="text-slate-400 text-[11px]">-</span>
+                                @else
+                                    <button type="button" 
+                                            @click="sliderImgs = {{ $dayImgs->toJson() }}; slideIdx = 0; sliderOpen = true"
+                                            class="bg-blue-50 hover:bg-[#0f56ba] text-[#0f56ba] hover:text-white px-2.5 py-1 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 transition shadow-2xs">
+                                        <i class="fa-regular fa-image text-xs"></i>
+                                        <span>Bukti ({{ $dayImgs->count() }})</span>
+                                    </button>
+                                @endif
+                            </td>
                         </tr>
                         @endforeach
                     </tbody>
@@ -197,8 +247,6 @@
         @endif
 
         <!-- 2. PANEL AKSI APPROVAL 4 TAHAP -->
-        @php $role = auth()->user()->role->nama_role; @endphp
-
         {{-- Aksi Admin --}}
         @if($role === 'Admin' && $t->status === 'Menunggu Admin')
         <form action="/tickets/{{ $t->id }}/approve" method="POST" class="mt-4 pt-4 border-t border-slate-100 bg-blue-50/40 p-4 rounded-xl border border-blue-100 flex flex-wrap gap-2.5 items-center text-xs">
@@ -289,7 +337,7 @@
         </form>
         @endif
 
-        {{-- Aksi Pegawai: Form Revisi --}}
+        {{-- Aksi Pegawai: Form Revisi (Dengan Dukungan Kerja / Libur) --}}
         @if($role === 'Pegawai' && $t->status === 'Revisi')
         <form action="/tickets/{{ $t->id }}/revise" method="POST" enctype="multipart/form-data" class="mt-4 pt-4 border-t border-slate-100 bg-amber-50/50 p-4 rounded-2xl border border-amber-200/80 space-y-3 text-xs">
             @csrf
@@ -300,18 +348,32 @@
             
             <div class="space-y-2">
                 @foreach($items as $idx => $it)
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-2 bg-white p-3 rounded-xl border border-slate-200/80">
+                <div x-data="{ stRev: '{{ $it['status_hari'] ?? 'Kerja' }}', kmRev: '{{ $it['km_tempuh'] ?? 0 }}' }" 
+                     class="grid grid-cols-1 md:grid-cols-4 gap-2.5 bg-white p-3 rounded-xl border border-slate-200/80 items-center">
                     <input type="date" name="items[{{ $idx }}][tgl_reimburse]" value="{{ $it['tgl_reimburse'] }}" readonly class="border border-slate-200 p-2 rounded-lg bg-slate-100 font-bold text-slate-700 cursor-not-allowed text-xs">
-                    <input type="number" name="items[{{ $idx }}][km_tempuh]" value="{{ $it['km_tempuh'] }}" min="1" max="80" class="border border-slate-200 p-2 rounded-lg text-xs font-bold focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none" placeholder="KM (Maks 80)" required>
-                    <input type="text" name="items[{{ $idx }}][keterangan]" value="{{ $it['keterangan'] }}" class="border border-slate-200 p-2 rounded-lg text-xs focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none" placeholder="Keterangan Rute..." required>
-                    <input type="file" name="items[{{ $idx }}][img][]" multiple accept="image/*" class="border border-slate-200 p-1 rounded-lg text-[11px] file:mr-2 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-amber-50 file:text-amber-700 cursor-pointer">
+                    <div class="flex items-center gap-3 font-semibold">
+                        <label class="inline-flex items-center gap-1 cursor-pointer text-emerald-700">
+                            <input type="radio" name="items[{{ $idx }}][status_hari]" value="Kerja" x-model="stRev" class="accent-emerald-600"> Kerja
+                        </label>
+                        <label class="inline-flex items-center gap-1 cursor-pointer text-rose-600">
+                            <input type="radio" name="items[{{ $idx }}][status_hari]" value="Libur" x-model="stRev" @change="kmRev = 0" class="accent-rose-600"> Libur
+                        </label>
+                    </div>
+                    <input type="number" name="items[{{ $idx }}][km_tempuh]" x-model="kmRev" min="1" max="80" 
+                           :disabled="stRev === 'Libur'" :required="stRev === 'Kerja'"
+                           class="border border-slate-200 p-2 rounded-lg text-xs font-bold focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none" 
+                           :class="stRev === 'Libur' ? 'bg-slate-200 cursor-not-allowed text-slate-400' : 'bg-white'" 
+                           placeholder="KM (Maks 80)">
+                    <input type="file" name="items[{{ $idx }}][img][]" multiple accept="image/*" :disabled="stRev === 'Libur'" 
+                           class="border border-slate-200 p-1 rounded-lg text-[11px] file:mr-2 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-amber-50 file:text-amber-700 cursor-pointer"
+                           :class="stRev === 'Libur' ? 'opacity-50 cursor-not-allowed' : ''">
                 </div>
                 @endforeach
             </div>
 
             <div class="flex justify-end pt-1">
                 <button type="button" onclick="konfirmasiAksi(this, 'Menunggu Admin', 'Kirim Ulang Revisi?', 'Perbaikan berkas akan dikirim kembali ke Admin.', '#d97706')" 
-                        class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl font-bold shadow-sm shadow-amber-600/20 flex items-center gap-1.5 transition">
+                        class="bg-amber-600 hover:bg-amber-700 active:scale-95 text-white px-4 py-2 rounded-xl font-bold shadow-sm shadow-amber-600/20 flex items-center gap-1.5 transition">
                     <i class="fa-solid fa-paper-plane text-xs"></i>
                     <span>Kirim Ulang Revisi ke Admin</span>
                 </button>

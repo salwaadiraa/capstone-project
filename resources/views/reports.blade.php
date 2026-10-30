@@ -83,12 +83,11 @@
                     <i class="fa-solid fa-file-excel text-sm"></i>
                     <span>Export Excel (CSV)</span>
                 </a>
-                
-                <button onclick="window.print()" 
-                        class="h-[38px] px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition">
+                <a href="/reports/print?{{ http_build_query(request()->all()) }}" target="_blank" 
+                   class="h-[38px] px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition">
                     <i class="fa-solid fa-print text-xs"></i>
                     <span>Cetak / PDF</span>
-                </button>
+                </a>
             </div>
         </div>
 

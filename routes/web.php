@@ -21,16 +21,21 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AppController::class, 'logout']);
 
     // Tambahan Route Export, Revisi, dan Manajemen Pegawai (Admin)
-    Route::get('/reports/export', [AppController::class, 'exportReports']);
     Route::post('/tickets/{ticket}/revise', [AppController::class, 'reviseTicket']);
+    Route::post('/tickets/{ticket}/cancel', [AppController::class, 'cancelTicket']);
+    Route::get('/tickets/{ticket}/print', [AppController::class, 'printTicket']);
     
     Route::get('/users', [AppController::class, 'users']);
     Route::post('/users', [AppController::class, 'storeUser']);
     Route::post('/users/{user}/delete', [AppController::class, 'deleteUser']);
+    Route::post('/users/{user}/update', [AppController::class, 'updateUser']);
 
     // Tambahkan di dalam Route::middleware('auth')->group:
+    Route::get('/reports/print', [AppController::class, 'printReports']);
+    Route::get('/reports/export', [AppController::class, 'exportReports']);
     Route::get('/ticket-reports', [AppController::class, 'ticketReports']);
     Route::get('/ticket-reports/export', [AppController::class, 'exportTicketReports']);
+    Route::get('/ticket-reports/print', [AppController::class, 'printTicketReports']);
 
     Route::post('/ap-methods', [AppController::class, 'storeApMethod']);
     Route::post('/ap-methods/{apMethod}/delete', [AppController::class, 'deleteApMethod']);

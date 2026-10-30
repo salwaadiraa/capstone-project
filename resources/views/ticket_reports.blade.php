@@ -53,7 +53,7 @@
                 </label>
                 <select name="status" class="select2-rep w-full">
                     <option value="">Semua Status</option>
-                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak'] as $st)
+                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak', 'Dibatalkan'] as $st)
                         <option value="{{ $st }}" {{ request('status') == $st ? 'selected' : '' }}>{{ $st }}</option>
                     @endforeach
                 </select>
@@ -112,12 +112,11 @@
                     <i class="fa-solid fa-file-excel text-sm"></i>
                     <span>Export Excel (CSV)</span>
                 </a>
-                
-                <button onclick="window.print()" 
-                        class="h-[38px] px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition">
+                <a href="/ticket-reports/print?{{ http_build_query(request()->all()) }}" target="_blank" 
+                   class="h-[38px] px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition">
                     <i class="fa-solid fa-print text-xs"></i>
-                    <span>Cetak / PDF</span>
-                </button>
+                    <span>Cetak Rekap / PDF</span>
+                </a>
             </div>
         </div>
 
@@ -133,6 +132,7 @@
                         <th class="py-3.5 px-4 text-right">Nominal Diajukan</th>
                         <th class="py-3.5 px-4 text-right">Nominal ACC</th>
                         <th class="py-3.5 px-4 text-center">Status</th>
+                        <th class="py-3.5 px-4 text-center">Cetak Detail</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -147,6 +147,7 @@
                             'Telah Dibayar'    => 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
                             'Selesai'          => 'bg-teal-50 text-teal-700 border-teal-200/80',
                             'Ditolak'          => 'bg-rose-50 text-rose-700 border-rose-200/80',
+                            'Dibatalkan'       => 'bg-red-50 text-red-700 border-red-200/80',
                         ];
                         $stClass = $statusColors[$t->status] ?? 'bg-slate-100 text-slate-700 border-slate-200';
                     @endphp
@@ -191,7 +192,7 @@
                                 <span class="font-semibold text-slate-800">
                                     {{ $t->tipe_pengajuan }}
                                 </span>
-                                @if($t->tipe_pengajuan === 'Reimburse BBM')
+                                @if(str_contains($t->tipe_pengajuan, 'BBM'))
                                     <span class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded-md text-slate-600 font-mono font-semibold border border-slate-200/60">
                                         {{ $t->json_req['km_tempuh'] ?? 0 }} KM
                                     </span>
@@ -227,10 +228,20 @@
                             </span>
                         </td>
 
+                        {{-- Cetak Detail --}}
+                        <td class="py-3.5 px-4 text-center">
+                            <a href="/tickets/{{ $t->id }}/print" target="_blank" 
+                               class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 hover:bg-[#0f56ba] text-[#0f56ba] hover:text-white border border-blue-200/60 text-[11px] font-bold transition shadow-2xs active:scale-95"
+                               title="Cetak Tiket #{{ $t->id }}">
+                                <i class="fa-solid fa-print text-xs"></i>
+                                <span>Print</span>
+                            </a>
+                        </td>
+
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="text-center py-12">
+                        <td colspan="8" class="text-center py-12">
                             <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto text-xl mb-2">
                                 <i class="fa-solid fa-clipboard-question"></i>
                             </div>
@@ -242,7 +253,6 @@
                 </tbody>
             </table>
         </div>
-
     </div>
 
 </div>

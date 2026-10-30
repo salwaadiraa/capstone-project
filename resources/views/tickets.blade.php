@@ -1,45 +1,55 @@
 @extends('layout')
 @section('content')
 <div id="alpineTiket" 
-     @tutup-modal-tiket.window="modalSatuan = false; modalPeriode = false; files = []; kmSatuan = ''"
+     @tutup-modal-tiket.window="modalSatuan = false; modalPeriode = false; filesSatuan = []; kmSatuan = ''"
      x-data="{ 
         modalSatuan: false, 
         modalPeriode: false, 
         kmSatuan: '', 
-        files: [], 
-        tglMulai: '{{ date('Y-m-d') }}',
-        tglSelesai: '{{ date('Y-m-d') }}',
+        filesSatuan: [], 
+        tahunPeriode: '{{ date('Y') }}',
+        bulanPeriode: '{{ date('n') }}',
+        periodeKe: '{{ date('j') <= 10 ? 1 : (date('j') <= 20 ? 2 : 3) }}',
+        tglMulai: '',
+        tglSelesai: '',
         rowsPeriode: [],
         sliderOpen: false, 
         sliderImgs: [], 
         slideIdx: 0,
         generateRows() {
-            if (!this.tglMulai || !this.tglSelesai) return;
-            let start = new Date(this.tglMulai);
-            let end = new Date(this.tglSelesai);
-            let diff = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
-            if (diff <= 0) {
-                Swal.fire('Perhatian', 'Tanggal akhir harus sama atau setelah tanggal awal!', 'warning');
-                this.rowsPeriode = [];
-                return;
+            let y = parseInt(this.tahunPeriode);
+            let m = parseInt(this.bulanPeriode);
+            let p = parseInt(this.periodeKe);
+            if (!y || !m || !p) return;
+
+            let startDay = 1;
+            let endDay = 10;
+
+            if (p === 1) {
+                startDay = 1;
+                endDay = 10;
+            } else if (p === 2) {
+                startDay = 11;
+                endDay = 20;
+            } else if (p === 3) {
+                startDay = 21;
+                // Hitung otomatis tanggal terakhir di bulan & tahun tersebut (28, 29, 30, atau 31)
+                endDay = new Date(y, m, 0).getDate();
             }
-            if (diff > 10) {
-                Swal.fire('Maksimal 10 Hari', 'Pengajuan periode maksimal 10 hari sekaligus! Tanggal akhir direset ke tanggal mulai.', 'warning');
-                this.tglSelesai = this.tglMulai;
-                start = new Date(this.tglMulai);
-                diff = 1;
-            }
+
+            let mm = String(m).padStart(2, '0');
+            this.tglMulai = `${y}-${mm}-${String(startDay).padStart(2, '0')}`;
+            this.tglSelesai = `${y}-${mm}-${String(endDay).padStart(2, '0')}`;
+
             let temp = [];
-            for (let i = 0; i < diff; i++) {
-                let d = new Date(start);
-                d.setDate(start.getDate() + i);
-                let iso = d.toISOString().split('T')[0];
-                temp.push({ tgl: iso, km: '', ket: '' });
+            for (let d = startDay; d <= endDay; d++) {
+                let dd = String(d).padStart(2, '0');
+                temp.push({ tgl: `${y}-${mm}-${dd}`, status_hari: 'Kerja', km: '', files: [] });
             }
             this.rowsPeriode = temp;
         },
         totalKmPeriode() {
-            return this.rowsPeriode.reduce((acc, r) => acc + (parseInt(r.km) || 0), 0);
+            return this.rowsPeriode.reduce((acc, r) => acc + (r.status_hari === 'Kerja' ? (parseInt(r.km) || 0) : 0), 0);
         },
         totalNominalPeriode() {
             return this.totalKmPeriode() * 500;
@@ -85,7 +95,7 @@
                 </label>
                 <select name="status" id="filterStatus" class="select2-filter w-full">
                     <option value="">Semua Status</option>
-                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak'] as $st)
+                    @foreach(['Menunggu Admin', 'Menunggu SPV', 'Menunggu Finance', 'Revisi', 'Telah Dibayar', 'Selesai', 'Ditolak', 'Dibatalkan'] as $st)
                         <option value="{{ $st }}" {{ request('status') == $st ? 'selected' : '' }}>{{ $st }}</option>
                     @endforeach
                 </select>
@@ -156,13 +166,17 @@
             <form id="formSatuan" action="/tickets" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
                 @csrf
                 <input type="hidden" name="mode_pengajuan" value="Satuan">
+                <input type="hidden" name="items[0][status_hari]" value="Kerja">
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="text-[10px] font-bold text-slate-500 mb-1 block">Pilih Kendaraan Operasional</label>
                         <select name="kendaraan_id" class="w-full border border-slate-200 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none text-xs" required>
                             @foreach($kendaraans as $k)
-                                <option value="{{ $k->id }}">[{{ $k->pemilik }}] {{ $k->merk_tipe }} - {{ $k->no_plat }}</option>
+                                <option value="{{ $k->id }}">
+                                    [{{ $k->pemilik }}{{ $k->pemilik === 'Pribadi' && $k->user ? ' - ' . ($k->user->pegawai->nama_lengkap ?? $k->user->name) : '' }}] 
+                                    {{ $k->merk_tipe }} ({{ $k->no_plat }})
+                                </option>
                             @endforeach
                         </select>
                     </div>
@@ -195,15 +209,20 @@
                     </div>
                 </div>
 
+                <!-- DRAG & DROP MULTI UPLOAD GAMBAR SATUAN -->
                 <div>
-                    <label class="text-[10px] font-bold text-slate-500 mb-1 block">Keterangan / Rute Perjalanan</label>
-                    <input type="text" name="items[0][keterangan]" class="w-full border border-slate-200 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none text-xs" placeholder="Contoh: Kunjungan pengiriman barang ke cabang..." required>
-                </div>
-
-                <div>
-                    <label class="text-[10px] font-bold text-slate-500 mb-1 block">Unggah Foto Bukti (Odometer / Struk / Maps)</label>
-                    <input type="file" name="items[0][img][]" multiple accept="image/*" required 
-                           class="w-full border border-slate-200 p-2 rounded-xl bg-slate-50 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-[#0f56ba]/10 file:text-[#0f56ba] hover:file:bg-[#0f56ba]/20 cursor-pointer text-xs">
+                    <label class="text-[10px] font-bold text-slate-500 mb-1 block">Upload Bukti Foto (Bisa pilih lebih dari 1 gambar)</label>
+                    <div class="border-2 border-dashed border-blue-300 rounded-2xl p-5 text-center bg-blue-50/30 relative cursor-pointer hover:bg-blue-50/60 transition">
+                        <input type="file" name="items[0][img][]" multiple accept="image/*" required
+                               @change="filesSatuan = Array.from($event.target.files).map(f => URL.createObjectURL(f))"
+                               class="absolute inset-0 opacity-0 cursor-pointer">
+                        <p class="text-xs text-slate-600"><i class="fa-solid fa-cloud-arrow-up text-[#0f56ba] text-lg mb-1 block"></i> <b>Drag & Drop</b> file bukti ke sini, atau klik untuk memilih banyak foto</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-2.5" x-show="filesSatuan.length > 0">
+                        <template x-for="src in filesSatuan">
+                            <img :src="src" class="w-14 h-14 object-cover rounded-xl border border-slate-200 shadow-2xs">
+                        </template>
+                    </div>
                 </div>
 
                 <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -217,7 +236,7 @@
     </div>
 
     <!-- ======================================================================= -->
-    <!-- MODAL B: TAMBAH PENGAJUAN PERIODE (MAKS 10 HARI)                         -->
+    <!-- MODAL B: TAMBAH PENGAJUAN PERIODE (PILIH TAHUN, BULAN, & PERIODE 1/2/3) -->
     <!-- ======================================================================= -->
     <div x-show="modalPeriode" 
          x-transition.opacity.duration.200ms 
@@ -233,8 +252,8 @@
                         <i class="fa-solid fa-calendar-week"></i>
                     </div>
                     <div>
-                        <h3 class="font-bold text-sm text-slate-800">Pengajuan Reimburse BBM Periode</h3>
-                        <p class="text-[11px] text-slate-400">Ajukan rekapitulasi perjalanan operasional hingga maksimal 10 hari kerja</p>
+                        <h3 class="font-bold text-sm text-slate-800">Pengajuan Reimburse BBM per Periode</h3>
+                        <p class="text-[11px] text-slate-400">Pilih periode dan input rute operasional per tanggal</p>
                     </div>
                 </div>
                 <button type="button" @click="modalPeriode = false" class="w-8 h-8 rounded-full hover:bg-slate-200/60 text-slate-400 hover:text-slate-700 flex items-center justify-center transition">
@@ -246,83 +265,144 @@
                 @csrf
                 <input type="hidden" name="mode_pengajuan" value="Periode">
 
-                <!-- Parameter Periode, Kendaraan & Rekening -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-600 block mb-1">Dari Tanggal</label>
-                        <input type="date" x-model="tglMulai" @change="generateRows()" class="w-full border border-slate-200 p-2 rounded-xl bg-white text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
+                <!-- PILIHAN TAHUN, BULAN, PERIODE (1 / 2 / 3), KENDARAAN, & REKENING -->
+                <div class="bg-blue-50/40 p-4 rounded-2xl border border-blue-100 space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div>
+                            <label class="font-bold text-xs text-[#0f56ba] block mb-1">1. Pilih Tahun</label>
+                            <select name="tahun_periode" x-model="tahunPeriode" @change="generateRows()" class="w-full border border-slate-200 p-2.5 rounded-xl bg-white font-semibold text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
+                                @for($y = date('Y') - 1; $y <= date('Y') + 1; $y++)
+                                    <option value="{{ $y }}">{{ $y }}</option>
+                                @endfor
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-bold text-xs text-[#0f56ba] block mb-1">2. Pilih Bulan</label>
+                            @php
+                                $listBulan = [
+                                    1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+                                    5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+                                    9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+                                ];
+                            @endphp
+                            <select name="bulan_periode" x-model="bulanPeriode" @change="generateRows()" class="w-full border border-slate-200 p-2.5 rounded-xl bg-white font-semibold text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
+                                @foreach($listBulan as $num => $namaBln)
+                                    <option value="{{ $num }}">{{ $namaBln }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-bold text-xs text-[#0f56ba] block mb-1">3. Pilih Periode</label>
+                            <select name="periode_ke" x-model="periodeKe" @change="generateRows()" class="w-full border border-slate-200 p-2.5 rounded-xl bg-white font-bold text-[#0f56ba] text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
+                                <option value="1">Periode 1 (Tgl 01 - 10)</option>
+                                <option value="2">Periode 2 (Tgl 11 - 20)</option>
+                                <option value="3">Periode 3 (Tgl 21 - Akhir Bulan)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-bold text-xs text-[#0f56ba] block mb-1">Rentang Tanggal (Otomatis)</label>
+                            <div class="w-full border border-slate-200 p-2 rounded-xl bg-slate-100 font-mono text-xs font-bold text-slate-700 flex items-center justify-center h-[42px]">
+                                <i class="fa-regular fa-calendar-check text-[#0f56ba] mr-1.5"></i>
+                                <span x-text="tglMulai + ' s/d ' + tglSelesai"></span>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-600 block mb-1">Sampai Tanggal (Maks 10 Hari)</label>
-                        <input type="date" x-model="tglSelesai" @change="generateRows()" class="w-full border border-slate-200 p-2 rounded-xl bg-white text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-600 block mb-1">Kendaraan Operasional</label>
-                        <select name="kendaraan_id" class="w-full border border-slate-200 p-2 rounded-xl bg-white text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
-                            @foreach($kendaraans as $k)
-                                <option value="{{ $k->id }}">[{{ $k->pemilik }}] {{ $k->merk_tipe }} ({{ $k->no_plat }})</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-600 block mb-1">Rekening Penerima Dana</label>
-                        <select name="ap_method_id" class="w-full border border-slate-200 p-2 rounded-xl bg-white text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
-                            @foreach($apMethods as $m)
-                                <option value="{{ $m->id }}">{{ $m->nama_bank }} - {{ $m->no_rekening }}</option>
-                            @endforeach
-                        </select>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-blue-200/60">
+                        <div>
+                            <label class="font-bold text-xs text-slate-700 block mb-1">Pilih Kendaraan (Pribadi / Toko)</label>
+                            <select name="kendaraan_id" class="w-full border border-slate-200 p-2.5 rounded-xl bg-white text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
+                                @foreach($kendaraans as $k)
+                                    <option value="{{ $k->id }}">
+                                        [{{ $k->pemilik }}{{ $k->pemilik === 'Pribadi' && $k->user ? ' - ' . ($k->user->pegawai->nama_lengkap ?? $k->user->name) : '' }}] 
+                                        {{ $k->merk_tipe }} ({{ $k->no_plat }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="font-bold text-xs text-slate-700 block mb-1">Pilih Rekening Pencairan</label>
+                            <select name="ap_method_id" class="w-full border border-slate-200 p-2.5 rounded-xl bg-white text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
+                                @foreach($apMethods as $m)
+                                    <option value="{{ $m->id }}">{{ $m->nama_bank }} - {{ $m->no_rekening }} (a.n {{ $m->atas_nama }})</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                <div>
-                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Judul / Keterangan Umum Periode</label>
-                    <input type="text" name="keterangan_umum" placeholder="Contoh: Operasional Pengiriman Wilayah Barat - Minggu Ke-1" class="w-full border border-slate-200 p-2.5 rounded-xl bg-white focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none text-xs" required>
-                </div>
-
-                <!-- Tabel Rincian Harian (Maks 10 Hari) -->
-                <div class="overflow-x-auto border border-slate-200 rounded-2xl">
+                <!-- Tabel Multi-Row Sesuai Periode -->
+                <div class="overflow-x-auto border border-slate-200/80 rounded-2xl">
                     <table class="w-full text-left border-collapse text-xs">
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[11px]">
                                 <th class="p-3 w-10 text-center">No</th>
-                                <th class="p-3 w-36">Tanggal</th>
-                                <th class="p-3 w-32">Jarak Tempuh</th>
+                                <th class="p-3 w-36">Tanggal (Readonly)</th>
+                                <th class="p-3 w-40">Status Kehadiran</th>
+                                <th class="p-3 w-36">Jarak KM (Maks 80)</th>
                                 <th class="p-3 w-36">Tarif (Rp 500/KM)</th>
-                                <th class="p-3">Rute / Keterangan Perjalanan</th>
-                                <th class="p-3 w-52">Foto Odometer / Struk</th>
+                                <th class="p-3">Upload Bukti Foto (Drag & Drop / Multi)</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <template x-for="(row, index) in rowsPeriode" :key="row.tgl">
-                                <tr class="hover:bg-slate-50/70 transition-colors">
+                                <tr class="transition" :class="row.status_hari === 'Libur' ? 'bg-slate-100/70 text-slate-400' : 'hover:bg-slate-50/70'">
                                     <td class="p-2.5 text-center font-bold text-slate-500" x-text="index + 1"></td>
                                     <td class="p-2.5">
                                         <input type="date" :name="'items['+index+'][tgl_reimburse]'" x-model="row.tgl" readonly
-                                               class="w-full border border-slate-200 p-1.5 rounded-lg bg-slate-100 font-semibold text-slate-700 cursor-not-allowed text-xs">
+                                               class="w-full border border-slate-200 p-2 rounded-xl bg-slate-100 font-semibold text-slate-700 cursor-not-allowed text-xs">
+                                    </td>
+                                    <td class="p-2.5">
+                                        <div class="flex items-center gap-3 font-semibold">
+                                            <label class="inline-flex items-center gap-1 cursor-pointer text-emerald-700">
+                                                <input type="radio" :name="'items['+index+'][status_hari]'" value="Kerja" x-model="row.status_hari" class="accent-emerald-600">
+                                                <span>Kerja</span>
+                                            </label>
+                                            <label class="inline-flex items-center gap-1 cursor-pointer text-rose-600">
+                                                <input type="radio" :name="'items['+index+'][status_hari]'" value="Libur" x-model="row.status_hari"
+                                                       @change="row.km = ''; row.files = []" class="accent-rose-600">
+                                                <span>Libur</span>
+                                            </label>
+                                        </div>
                                     </td>
                                     <td class="p-2.5">
                                         <input type="number" :name="'items['+index+'][km_tempuh]'" x-model="row.km" min="1" max="80"
+                                               :disabled="row.status_hari === 'Libur'"
+                                               :required="row.status_hari === 'Kerja'"
                                                @input="if(row.km > 80) row.km = 80; if(row.km < 0) row.km = '';"
-                                               placeholder="KM (1-80)" class="w-full border border-slate-200 p-1.5 rounded-lg bg-white font-bold text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
+                                               :placeholder="row.status_hari === 'Libur' ? 'Libur (0 KM)' : '1 - 80 KM'"
+                                               :class="row.status_hari === 'Libur' ? 'bg-slate-200 cursor-not-allowed text-slate-400' : 'bg-white font-bold text-slate-800'"
+                                               class="w-full border border-slate-200 p-2 rounded-xl text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none">
                                     </td>
-                                    <td class="p-2.5 font-bold font-mono text-[#0f56ba]" x-text="'Rp ' + ((row.km ? row.km * 500 : 0).toLocaleString('id-ID'))"></td>
+                                    <td class="p-2.5 font-bold font-mono text-xs" :class="row.status_hari === 'Libur' ? 'text-slate-400' : 'text-[#0f56ba]'"
+                                        x-text="row.status_hari === 'Libur' ? 'Rp 0 (Libur)' : 'Rp ' + ((row.km ? row.km * 500 : 0).toLocaleString('id-ID'))"></td>
                                     <td class="p-2.5">
-                                        <input type="text" :name="'items['+index+'][keterangan]'" x-model="row.ket"
-                                               placeholder="Tujuan & rute..." class="w-full border border-slate-200 p-1.5 rounded-lg bg-white text-xs focus:ring-2 focus:ring-[#0f56ba]/20 focus:border-[#0f56ba] outline-none" required>
-                                    </td>
-                                    <td class="p-2.5">
-                                        <input type="file" :name="'items['+index+'][img][]'" multiple accept="image/*"
-                                               class="w-full border border-slate-200 p-1 rounded-lg bg-slate-50 text-[11px] file:mr-2 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-blue-50 file:text-[#0f56ba] cursor-pointer" required>
+                                        <div class="border border-dashed rounded-xl p-2 text-center relative transition"
+                                             :class="row.status_hari === 'Libur' ? 'border-slate-300 bg-slate-200/60 cursor-not-allowed' : 'border-blue-300 bg-blue-50/30 hover:bg-blue-50/70 cursor-pointer'">
+                                            <input type="file" :name="'items['+index+'][img][]'" multiple accept="image/*"
+                                                   :disabled="row.status_hari === 'Libur'"
+                                                   :required="row.status_hari === 'Kerja'"
+                                                   @change="row.files = Array.from($event.target.files).map(f => URL.createObjectURL(f))"
+                                                   class="absolute inset-0 opacity-0" :class="row.status_hari === 'Libur' ? 'cursor-not-allowed' : 'cursor-pointer'">
+                                            <span class="text-[11px]" x-text="row.status_hari === 'Libur' ? 'Tidak perlu bukti (Libur)' : (row.files.length > 0 ? row.files.length + ' Foto Dipilih' : 'Drag & Drop / Klik Pilih Foto')"></span>
+                                        </div>
+                                        <div class="flex flex-wrap gap-1 mt-1.5" x-show="row.files && row.files.length > 0">
+                                            <template x-for="src in row.files">
+                                                <img :src="src" class="w-8 h-8 object-cover rounded-lg border border-slate-200 shadow-2xs">
+                                            </template>
+                                        </div>
                                     </td>
                                 </tr>
                             </template>
                         </tbody>
                         <tfoot>
                             <tr class="bg-blue-50/70 border-t border-blue-100 font-bold text-xs text-slate-800">
-                                <td colspan="2" class="p-3 text-right uppercase tracking-wider text-[11px] text-slate-500">Total Keseluruhan:</td>
+                                <td colspan="3" class="p-3 text-right uppercase tracking-wider text-[11px] text-slate-600">
+                                    TOTAL KESELURUHAN (<span x-text="rowsPeriode.length"></span> HARI):
+                                </td>
                                 <td class="p-3 font-mono text-[#0f56ba]" x-text="totalKmPeriode() + ' KM'"></td>
                                 <td class="p-3 font-mono text-emerald-700 text-sm" x-text="'Rp ' + totalNominalPeriode().toLocaleString('id-ID')"></td>
-                                <td colspan="2" class="p-3 text-[11px] font-normal text-slate-400 italic">*Tarif Fix BBM Pertalite Rp 500/KM (Maks 80 KM/Hari)</td>
+                                <td class="p-3 text-[11px] font-normal text-slate-500 italic">*BBM Fix Pertalite Rp 500/KM (Maks 80 KM/Hari Kerja)</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -416,7 +496,6 @@
         muatDataTiket('/tickets');
     }
 
-    // Fungsi POST AJAX untuk Simpan Satuan maupun Periode
     function konfirmasiSimpan(formId) {
         const form = document.getElementById(formId);
         if (!form.checkValidity()) {
@@ -426,7 +505,7 @@
 
         Swal.fire({
             title: 'Kirim Pengajuan Reimburse BBM?',
-            text: 'Pastikan tanggal, jarak KM, kendaraan, dan rekening penerima sudah sesuai.',
+            text: 'Pastikan periode, status Kerja/Libur, jarak KM, kendaraan, dan rekening penerima sudah sesuai.',
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#0f56ba',

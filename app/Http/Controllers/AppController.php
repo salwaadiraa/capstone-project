@@ -16,7 +16,7 @@ class AppController extends Controller
     private function getKmTerpakai($userId, $tanggal, $excludeTicketId = null)
     {
         $tickets = Ticket::where('user_id', $userId)
-            ->where('status', '!=', 'Ditolak')
+            ->whereNotIn('status', ['Ditolak', 'Dibatalkan']) // Abaikan Ditolak & Dibatalkan
             ->when($excludeTicketId, fn($q) => $q->where('id', '!=', $excludeTicketId))
             ->get();
 
@@ -140,7 +140,10 @@ class AppController extends Controller
         $tickets = $query->paginate(5)->withQueryString();
         $apMethods = $user->apMethods;
         // Ambil kendaraan pribadi user + kendaraan milik Toko
-        $kendaraans = Kendaraan::get();
+        $kendaraans = \App\Models\Kendaraan::with('user.pegawai')
+            ->where('user_id', $user->id)
+            ->orWhere('pemilik', 'Toko')
+            ->get();
 
         if ($request->ajax()) {
             return view('_ticket_list', compact('tickets'))->render();
@@ -150,60 +153,74 @@ class AppController extends Controller
     }
 
     // =========================================================================
-    // 4. SIMPAN TIKET BARU (MENDUKUNG SATUAN 1 HARI & PERIODE MAKS 10 HARI)
+    // 4. SIMPAN TIKET BARU (TANPA KETERANGAN, DIGANTI LABEL PERIODE 1 / 2 / 3)
     // =========================================================================
     public function storeTicket(Request $request) 
     {
-        $mode = $request->mode_pengajuan ?? 'Satuan'; // 'Satuan' atau 'Periode'
+        $mode = $request->mode_pengajuan ?? 'Periode';
         $userId = Auth::id();
-        $itemsInput = $request->items ?? []; // Array baris tanggal
+        $itemsInput = $request->items ?? [];
 
-        if (empty($itemsInput) || count($itemsInput) > 10) {
-            return response()->json(['status' => 'gagal', 'pesan' => 'Jumlah hari pengajuan harus antara 1 hingga maksimal 10 hari!'], 422);
+        // Maksimal 11 hari (karena Periode 3: tgl 21 s/d 31 = 11 hari)
+        if (empty($itemsInput) || count($itemsInput) > 11) {
+            return response()->json(['status' => 'gagal', 'pesan' => 'Jumlah hari pengajuan harus antara 1 s/d 11 hari!'], 422);
         }
 
         $savedItems = [];
         $allImgPaths = [];
         $totalNominal = 0;
         $totalKm = 0;
+        $adaHariKerja = false;
 
-        // Validasi kuota 80 KM untuk setiap tanggal yang diajukan
         foreach ($itemsInput as $idx => $row) {
             $tgl = $row['tgl_reimburse'] ?? '';
-            $km  = (int) ($row['km_tempuh'] ?? 0);
-            $ket = $row['keterangan'] ?? '-';
+            $statusHari = $row['status_hari'] ?? 'Kerja';
+
+            if ($statusHari === 'Libur') {
+                $savedItems[] = [
+                    'tgl_reimburse' => $tgl,
+                    'status_hari'   => 'Libur',
+                    'km_tempuh'     => 0,
+                    'jenis_bbm'     => 'Pertalite',
+                    'tarif_per_km'  => 500,
+                    'nominal'       => 0,
+                    'imgs'          => []
+                ];
+                continue;
+            }
+
+            $adaHariKerja = true;
+            $km = (int) ($row['km_tempuh'] ?? 0);
 
             if (!$tgl || $km <= 0 || $km > 80) {
                 return response()->json([
                     'status' => 'gagal',
-                    'pesan'  => "Pada tanggal {$tgl}: Jarak tempuh harus diisi antara 1 s/d 80 KM!"
+                    'pesan'  => "Pada tanggal {$tgl} (Status Kerja): Jarak tempuh wajib diisi antara 1 s/d 80 KM!"
                 ], 422);
             }
 
+            // Cek kuota 80 KM/tanggal
             $kmTerpakai = $this->getKmTerpakai($userId, $tgl);
             if (($kmTerpakai + $km) > 80) {
                 $sisa = max(0, 80 - $kmTerpakai);
                 return response()->json([
                     'status' => 'gagal',
-                    'pesan'  => "Tanggal {$tgl} melebihi kuota 80 KM/hari! Anda sudah mengajukan {$kmTerpakai} KM di tanggal tersebut. Sisa kuota: {$sisa} KM."
+                    'pesan'  => "Tanggal {$tgl} melebihi kuota 80 KM/hari! Sisa kuota Anda di tanggal tersebut: {$sisa} KM."
                 ], 422);
             }
 
-            // Simpan foto bukti per baris (atau multi-upload)
             $rowImgs = [];
             if ($request->hasFile("items.{$idx}.img")) {
-                $files = $request->file("items.{$idx}.img");
-                if (is_array($files)) {
-                    foreach ($files as $f) {
-                        $path = $f->store('bukti_tiket', 'public');
-                        $rowImgs[] = $path;
-                        $allImgPaths[] = $path;
-                    }
-                } else {
-                    $path = $files->store('bukti_tiket', 'public');
+                foreach ((array) $request->file("items.{$idx}.img") as $f) {
+                    $path = $f->store('bukti_tiket', 'public');
                     $rowImgs[] = $path;
                     $allImgPaths[] = $path;
                 }
+            } else {
+                return response()->json([
+                    'status' => 'gagal',
+                    'pesan'  => "Pada tanggal {$tgl} (Status Kerja): Wajib mengunggah bukti foto!"
+                ], 422);
             }
 
             $subNominal = $km * 500;
@@ -212,34 +229,59 @@ class AppController extends Controller
 
             $savedItems[] = [
                 'tgl_reimburse' => $tgl,
+                'status_hari'   => 'Kerja',
                 'km_tempuh'     => $km,
                 'jenis_bbm'     => 'Pertalite',
                 'tarif_per_km'  => 500,
                 'nominal'       => $subNominal,
-                'keterangan'    => $ket,
                 'imgs'          => $rowImgs
             ];
+        }
+
+        if (!$adaHariKerja) {
+            return response()->json(['status' => 'gagal', 'pesan' => 'Tidak bisa mengajukan tiket jika seluruh tanggal berstatus Libur!'], 422);
         }
 
         $tglAwal  = $savedItems[0]['tgl_reimburse'];
         $tglAkhir = end($savedItems)['tgl_reimburse'];
 
+        // Bentuk Label Periode Otomatis (menggantikan keterangan_req)
+        $namaBulan = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+
+        if ($mode === 'Periode') {
+            $pKe   = $request->periode_ke ?? 1;
+            $bln   = (int) ($request->bulan_periode ?? date('n', strtotime($tglAwal)));
+            $thn   = $request->tahun_periode ?? date('Y', strtotime($tglAwal));
+            $dAwal = substr($tglAwal, 8, 2);
+            $dAkhir = substr($tglAkhir, 8, 2);
+            $labelPeriode = "Periode {$pKe} ({$dAwal} - {$dAkhir} " . ($namaBulan[$bln] ?? '') . " {$thn})";
+        } else {
+            $labelPeriode = "Harian (" . date('d-m-Y', strtotime($tglAwal)) . ")";
+        }
+
         $ticket = Ticket::create([
             'user_id'        => $userId,
             'kendaraan_id'   => $request->kendaraan_id,
             'ap_method_id'   => $request->ap_method_id,
-            'tipe_pengajuan' => $mode === 'Periode' ? 'Reimburse BBM (Periode)' : 'Reimburse BBM',
+            'tipe_pengajuan' => $mode === 'Periode' ? 'Reimburse BBM (Periode)' : 'Reimburse BBM (Satuan)',
             'tgl_reimburse'  => $tglAwal,
             'tgl_akhir'      => $tglAkhir,
             'nominal_req'    => $totalNominal,
-            'keterangan_req' => $request->keterangan_umum ?? ($savedItems[0]['keterangan'] ?? 'Reimburse BBM'),
+            'keterangan_req' => $labelPeriode, // Menyimpan info Periode (tanpa keterangan manual)
             'img_req'        => $allImgPaths,
             'json_req'       => [
-                'mode'         => $mode,
-                'km_tempuh'    => $totalKm,
-                'jenis_bbm'    => 'Pertalite',
-                'tarif_per_km' => 500,
-                'items'        => $savedItems
+                'mode'          => $mode,
+                'periode_ke'    => $request->periode_ke ?? null,
+                'bulan_periode' => $request->bulan_periode ?? null,
+                'tahun_periode' => $request->tahun_periode ?? null,
+                'km_tempuh'     => $totalKm,
+                'jenis_bbm'     => 'Pertalite',
+                'tarif_per_km'  => 500,
+                'items'         => $savedItems
             ],
             'status'         => 'Menunggu Admin'
         ]);
@@ -249,14 +291,14 @@ class AppController extends Controller
             'user_id'     => $userId,
             'role'        => Auth::user()->role->nama_role,
             'status_app'  => 'Menunggu Admin',
-            'catatan_app' => "Mengajukan {$mode} (" . count($savedItems) . " hari, Total {$totalKm} KM) sebesar Rp " . number_format($totalNominal, 0, ',', '.')
+            'catatan_app' => "Mengajukan {$labelPeriode} (Total {$totalKm} KM) sebesar Rp " . number_format($totalNominal, 0, ',', '.')
         ]);
 
         return response()->json(['status' => 'sukses', 'pesan' => 'Pengajuan Reimburse BBM berhasil dikirim ke Admin!']);
     }
 
     // =========================================================================
-    // 5. REVISI TIKET OLEH PEGAWAI (MENDUKUNG SATUAN & PERIODE)
+    // 5. REVISI TIKET OLEH PEGAWAI (TANPA INPUT KETERANGAN)
     // =========================================================================
     public function reviseTicket(Request $request, Ticket $ticket) 
     {
@@ -268,23 +310,38 @@ class AppController extends Controller
         $allImgPaths = [];
         $totalNominal = 0;
         $totalKm = 0;
+        $adaHariKerja = false;
 
         foreach ($itemsInput as $idx => $row) {
             $tgl = $row['tgl_reimburse'] ?? ($oldItems[$idx]['tgl_reimburse'] ?? date('Y-m-d'));
-            $km  = (int) ($row['km_tempuh'] ?? 0);
-            $ket = $row['keterangan'] ?? ($oldItems[$idx]['keterangan'] ?? '-');
+            $statusHari = $row['status_hari'] ?? 'Kerja';
 
-            if ($km <= 0 || $km > 80) {
-                return response()->json(['status' => 'gagal', 'pesan' => "Tanggal {$tgl}: KM harus antara 1 - 80 KM!"], 422);
+            if ($statusHari === 'Libur') {
+                $savedItems[] = [
+                    'tgl_reimburse' => $tgl,
+                    'status_hari'   => 'Libur',
+                    'km_tempuh'     => 0,
+                    'jenis_bbm'     => 'Pertalite',
+                    'tarif_per_km'  => 500,
+                    'nominal'       => 0,
+                    'imgs'          => []
+                ];
+                continue;
             }
 
-            // Cek kuota tanggal tersebut dengan mengabaikan tiket yang sedang direvisi ini
+            $adaHariKerja = true;
+            $km = (int) ($row['km_tempuh'] ?? 0);
+
+            if ($km <= 0 || $km > 80) {
+                return response()->json(['status' => 'gagal', 'pesan' => "Tanggal {$tgl} (Kerja): KM harus antara 1 - 80 KM!"], 422);
+            }
+
             $kmTerpakai = $this->getKmTerpakai($userId, $tgl, $ticket->id);
             if (($kmTerpakai + $km) > 80) {
                 $sisa = max(0, 80 - $kmTerpakai);
                 return response()->json([
                     'status' => 'gagal',
-                    'pesan'  => "Revisi tanggal {$tgl} melebihi batas 80 KM/hari! Sisa kuota di tanggal tersebut: {$sisa} KM."
+                    'pesan'  => "Revisi tanggal {$tgl} melebihi batas 80 KM/hari! Sisa kuota: {$sisa} KM."
                 ], 422);
             }
 
@@ -303,32 +360,29 @@ class AppController extends Controller
 
             $savedItems[] = [
                 'tgl_reimburse' => $tgl,
+                'status_hari'   => 'Kerja',
                 'km_tempuh'     => $km,
                 'jenis_bbm'     => 'Pertalite',
                 'tarif_per_km'  => 500,
                 'nominal'       => $subNominal,
-                'keterangan'    => $ket,
                 'imgs'          => $rowImgs
             ];
         }
 
-        if (empty($allImgPaths)) {
-            $allImgPaths = $ticket->img_req ?? [];
+        if (!$adaHariKerja) {
+            return response()->json(['status' => 'gagal', 'pesan' => 'Minimal harus ada 1 hari Kerja!'], 422);
         }
 
+        $jsonBaru = $ticket->json_req;
+        $jsonBaru['km_tempuh'] = $totalKm;
+        $jsonBaru['items'] = $savedItems;
+
         $ticket->update([
-            'nominal_req'    => $totalNominal,
-            'nominal_app'    => null,
-            'keterangan_req' => $request->keterangan_req ?? $ticket->keterangan_req,
-            'img_req'        => $allImgPaths,
-            'json_req'       => [
-                'mode'         => $ticket->json_req['mode'] ?? 'Satuan',
-                'km_tempuh'    => $totalKm,
-                'jenis_bbm'    => 'Pertalite',
-                'tarif_per_km' => 500,
-                'items'        => $savedItems
-            ],
-            'status'         => 'Menunggu Admin'
+            'nominal_req' => $totalNominal,
+            'nominal_app' => null,
+            'img_req'     => $allImgPaths,
+            'json_req'    => $jsonBaru,
+            'status'      => 'Menunggu Admin'
         ]);
 
         TicketApproval::create([
@@ -687,26 +741,54 @@ class AppController extends Controller
         return back()->with('toast', 'Rekening berhasil dihapus!');
     }
 
-    // KHUSUS ADMIN: Tambah Kendaraan via AJAX
+    // KHUSUS ADMIN: Edit Data Pegawai via AJAX
+    public function updateUser(Request $request, User $user) 
+    {
+        if (Auth::user()->role->nama_role !== 'Admin') abort(403);
+
+        $dataUser = [
+            'name'     => $request->nama_lengkap,
+            'username' => $request->username,
+            'role_id'  => $request->role_id,
+        ];
+        if ($request->filled('password')) {
+            $dataUser['password'] = Hash::make($request->password);
+        }
+        $user->update($dataUser);
+
+        $user->pegawai()->updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'nama_lengkap' => $request->nama_lengkap,
+                'nik'          => $request->nik,
+                'ttl'          => $request->ttl
+            ]
+        );
+
+        return response()->json(['status' => 'sukses', 'pesan' => 'Data pegawai berhasil diperbarui!']);
+    }
+
+    // KHUSUS ADMIN: Tambah Kendaraan (Jika Pribadi -> simpan user_id pegawai & kembalikan nama pegawai)
     public function storeKendaraan(Request $request) 
     {
         if (Auth::user()->role->nama_role !== 'Admin') abort(403);
 
         $motor = \App\Models\Kendaraan::create([
-            'user_id'   => null,
+            'user_id'   => $request->pemilik === 'Pribadi' ? $request->user_id : null,
             'merk_tipe' => $request->merk_tipe,
             'no_plat'   => strtoupper($request->no_plat),
             'pemilik'   => $request->pemilik
         ]);
 
-        if ($request->ajax()) {
-            return response()->json([
-                'status' => 'sukses',
-                'pesan'  => 'Kendaraan baru berhasil ditambahkan!',
-                'data'   => $motor
-            ]);
-        }
-        return back()->with('toast', 'Kendaraan baru berhasil ditambahkan!');
+        $motor->load('user.pegawai');
+        $namaPegawai = $motor->user ? ($motor->user->pegawai->nama_lengkap ?? $motor->user->name) : null;
+
+        return response()->json([
+            'status'       => 'sukses',
+            'pesan'        => 'Kendaraan baru berhasil ditambahkan!',
+            'data'         => $motor,
+            'nama_pegawai' => $namaPegawai
+        ]);
     }
 
     // KHUSUS ADMIN: Hapus Kendaraan via AJAX
@@ -719,5 +801,90 @@ class AppController extends Controller
             return response()->json(['status' => 'sukses', 'pesan' => 'Data kendaraan berhasil dihapus!']);
         }
         return back()->with('toast', 'Data kendaraan berhasil dihapus!');
+    }
+
+    // =========================================================================
+    // BATALKAN PENGAJUAN OLEH PEGAWAI (HANYA SAAT MASIH MENUNGGU ADMIN)
+    // =========================================================================
+    public function cancelTicket(Request $request, Ticket $ticket) 
+    {
+        if ($ticket->user_id !== Auth::id() || $ticket->status !== 'Menunggu Admin') {
+            return response()->json([
+                'status' => 'gagal', 
+                'pesan'  => 'Pengajuan tidak dapat dibatalkan karena sudah diproses Admin!'
+            ], 422);
+        }
+
+        $ticket->update(['status' => 'Dibatalkan']);
+
+        TicketApproval::create([
+            'ticket_id'   => $ticket->id,
+            'user_id'     => Auth::id(),
+            'role'        => 'Pegawai',
+            'status_app'  => 'Dibatalkan',
+            'catatan_app' => 'Pengajuan dibatalkan sendiri oleh pegawai.'
+        ]);
+
+        return response()->json([
+            'status' => 'sukses', 
+            'pesan'  => 'Tiket #' . $ticket->id . ' berhasil dibatalkan dan kuota KM Anda telah dikembalikan!'
+        ]);
+    }
+
+    // =========================================================================
+    // CETAK / PRINT DETAIL PER TIKET (NEW TAB / POPUP PDF)
+    // =========================================================================
+    public function printTicket(Ticket $ticket) 
+    {
+        $user = Auth::user();
+        if ($user->role->nama_role === 'Pegawai' && $ticket->user_id !== $user->id) {
+            abort(403);
+        }
+
+        $ticket->load(['user.pegawai', 'kendaraan.user.pegawai', 'apMethod', 'approvals.user']);
+        return view('ticket_print', compact('ticket'));
+    }
+
+    // =========================================================================
+    // CETAK REKAP LAPORAN PENGELUARAN FINANCE (NEW TAB SESUAI FILTER)
+    // =========================================================================
+    public function printReports(Request $request) 
+    {
+        $query = Pembayaran::with(['ticket.user.pegawai', 'ticket.apMethod', 'ticket.kendaraan'])->latest();
+
+        $tgl1 = $request->get('tgl1', date('Y-m-01'));
+        $tgl2 = $request->get('tgl2', date('Y-m-d'));
+        if ($tgl1 && $tgl2) {
+            $query->whereBetween('created_at', [$tgl1 . ' 00:00:00', $tgl2 . ' 23:59:59']);
+        }
+
+        $pembayarans = $query->get();
+        return view('reports_print', compact('pembayarans', 'tgl1', 'tgl2'));
+    }
+
+    // =========================================================================
+    // CETAK REKAP LAPORAN TIKET PENGAJUAN (NEW TAB SESUAI FILTER)
+    // =========================================================================
+    public function printTicketReports(Request $request) 
+    {
+        $query = Ticket::with(['user.pegawai', 'apMethod', 'kendaraan.user.pegawai'])->latest();
+
+        if ($request->filled('tipe_pengajuan')) {
+            $query->where('tipe_pengajuan', $request->tipe_pengajuan);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $tgl1 = $request->get('tgl1', date('Y-m-01'));
+        $tgl2 = $request->get('tgl2', date('Y-m-d'));
+        if ($tgl1 && $tgl2) {
+            $query->whereBetween('created_at', [$tgl1 . ' 00:00:00', $tgl2 . ' 23:59:59']);
+        }
+
+        $tickets = $query->get();
+        $statusFilter = $request->get('status') ?: 'Semua Status';
+
+        return view('ticket_reports_print', compact('tickets', 'tgl1', 'tgl2', 'statusFilter'));
     }
 }
